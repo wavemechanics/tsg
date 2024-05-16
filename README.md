@@ -2,7 +2,7 @@ FreeBSD driver and control program for TrueTime/Symmetricom 560-5900 series card
 
 WORK IN PROGRESS
 
-Several board parameters can be get and set using `ioctl`s and via the tsgctl cli.
+Several board parameters can be get and set using `ioctl`s and via the `tsgctl` cli.
 There is enough so far to configure GPS syncing, sending and receiving timecodes, and
 configuring the pulse generator.
 
@@ -12,16 +12,16 @@ Next steps:
 * enable interrupt handling and integrate with PPS API
 * maybe implement read to generate an NMEA stream
 
-** How to build and load
+## How to build and load
 
 Directory layout:
 
-tsg/	driver sources
+    tsg/	driver sources
 
-tsgctl/	control program sources
+    tsgctl/	control program sources
 
-Each source directory has its own Makefile, so you can just change to each directory
-and run make.
+Each source directory has its own `Makefile`, so you can just change to each directory
+and run `make`.
 
 To load the driver:
 
@@ -41,7 +41,7 @@ You should see something like:
 I am using two different cards, so both devices show up.
 
 
-** How to test
+## How to test
 
 Once the drivers are loaded and the cards are detected, you can use the cli to control
 them.
