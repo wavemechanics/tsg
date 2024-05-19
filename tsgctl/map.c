@@ -32,3 +32,22 @@ printmap(FILE *f, struct map *m, uint8_t flags)
 	for (p = m; p->desc; ++p)
 		fprintf(f, "%s\n", p->desc);
 }
+
+int
+truthy(char *s)
+{
+	static struct map tab[] = {
+		{ 0, "0" },
+		{ 0, "n" },
+		{ 0, "no" },
+		{ 0, "false" },
+		{ 1, "1" },
+		{ 1, "y" },
+		{ 1, "yes" },
+		{ 1, "true" },
+		{ 0, NULL }
+	};
+
+	int val = mapbydesc(tab, s, 2);
+	return val == 2 ? -1 : val;
+}

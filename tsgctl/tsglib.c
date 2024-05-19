@@ -105,3 +105,15 @@ tsg_get_timecode_agc_delays(int fd, struct tsg_agc_delays *p)
 {
 	return ioctl(fd, TSG_GET_TIMECODE_AGC_DELAYS, p);
 }
+
+int
+tsg_get_clock_leap(int fd, uint8_t *p)
+{
+	return ioctl(fd, TSG_GET_CLOCK_LEAP, p);
+}
+
+int
+tsg_set_clock_leap(int fd, uint8_t *p)
+{
+	return ioctl(fd, TSG_SET_CLOCK_LEAP, p);
+}

@@ -1,0 +1,9 @@
+bus_if.h
+device_if.h
+export_syms
+machine
+opt_global.h
+pci_if.h
+tsg.kld
+tsg.ko
+x86

@@ -139,4 +139,10 @@ struct tsg_agc_delays {
 
 #define	TSG_GET_TIMECODE_AGC_DELAYS	_IOR('T', 90, struct tsg_agc_delays)
 
+#define	TSG_INSERT_LEAP		0x01
+#define	TSG_USE_TQ		0x02
+
+#define	TSG_GET_CLOCK_LEAP		_IOR('T', 100, uint8_t)
+#define	TSG_SET_CLOCK_LEAP		_IOW('t', 101, uint8_t)
+
 #endif

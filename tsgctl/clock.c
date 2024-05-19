@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <string.h>
 #include "gettok.h"
 #include "node.h"
 #include "map.h"
@@ -72,21 +73,28 @@ set_dac(int fd)
 static int
 get_leap(int fd)
 {
-	printf("in get leap\n");
+	uint8_t leap;
+
+	if (tsg_get_clock_leap(fd, &leap) != 0)
+		return -1;
+	printf("leap scheduled: %s\n", leap & TSG_INSERT_LEAP ? "yes" : "no");
 	return 0;
 }
 
 static int
 set_leap(int fd)
 {
-	char *freq = gettok();
+	char *tok = gettok();
+	uint8_t leap;
+	int val;
 
-	printf("in set leap\n");
-	if (freq == NULL) {
-		printf("expected leap\n");
+	if ((val = truthy(tok)) == -1) {
+		printf("leap argument must be yes or no\n");
 		return -2;
 	}
-	return 0;
+	leap = val ? TSG_INSERT_LEAP : 0;
+
+	return tsg_set_clock_leap(fd, &leap);
 }
 
 static int

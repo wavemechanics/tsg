@@ -38,6 +38,7 @@
 /* register addresses */
 #define	REG_HARDWARE_STATUS	0xfe
 #define	REG_LOCK_STATUS		0x105
+#define	REG_MISC_CONTROL	0x12c
 
 struct tsg_softc {
 	device_t	device;
@@ -741,6 +742,43 @@ tsg_get_timecode_agc_delays(struct tsg_softc *sc, caddr_t arg)
 }
 
 static int
+tsg_get_leap(struct tsg_softc *sc, caddr_t arg)
+{
+	uint8_t *argp = (uint8_t *) arg;
+
+	lock(sc);
+	bus_read_region_1(sc->registers_resource, REG_MISC_CONTROL, argp, 1);
+	unlock(sc);
+	*argp &= TSG_INSERT_LEAP;
+	return 0;
+}
+
+static int
+tsg_set_leap(struct tsg_softc *sc, caddr_t arg)
+{
+	uint8_t *argp = (uint8_t *)arg;
+
+	if (*argp != 0 && *argp != TSG_INSERT_LEAP)
+		return ENODEV;
+
+	lock(sc);
+
+	if (!sc->new_model)
+		sc->buf[0] = 0;
+	else {
+		/* New boards support 'use TQ' in REG_MISC_CONTROL register */
+		bus_read_region_1(sc->registers_resource, REG_MISC_CONTROL, sc->buf, 1);
+		sc->buf[0] &= TSG_USE_TQ;
+	}
+	sc->buf[0] |= *argp;
+
+	bus_write_region_1(sc->registers_resource, REG_MISC_CONTROL, sc->buf, 1);
+	unlock(sc);
+
+	return 0;
+}
+
+static int
 tsg_ioctl(struct cdev *dev, u_long cmd, caddr_t arg, int fflag, struct thread *td)
 {
 	struct tsg_softc *sc = dev->si_drv1;
@@ -797,6 +835,12 @@ tsg_ioctl(struct cdev *dev, u_long cmd, caddr_t arg, int fflag, struct thread *t
 		break;
 	case TSG_GET_TIMECODE_AGC_DELAYS:
 		error = tsg_get_timecode_agc_delays(sc, arg);
+		break;
+	case TSG_GET_CLOCK_LEAP:
+		error = tsg_get_leap(sc, arg);
+		break;
+	case TSG_SET_CLOCK_LEAP:
+		error = tsg_set_leap(sc, arg);
 		break;
 	}
 

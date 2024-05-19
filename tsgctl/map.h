@@ -12,5 +12,6 @@ struct map {
 char *mapbyval(struct map *m, uint8_t val, char *def);
 uint8_t mapbydesc(struct map *m, char *desc, uint8_t def);
 void printmap(FILE *f, struct map *m, uint8_t flags);
+int truthy(char *s);
 
 #endif

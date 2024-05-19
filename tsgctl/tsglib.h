@@ -25,5 +25,7 @@ int tsg_get_clock_time(int fd, struct tsg_time *p);
 int tsg_get_gps_position(int fd, struct tsg_position *p);
 int tsg_get_gps_signal(int fd, struct tsg_signal *p);
 int tsg_get_timecode_agc_delays(int fd, struct tsg_agc_delays *p);
+int tsg_get_clock_leap(int fd, uint8_t *p);
+int tsg_set_clock_leap(int fd, uint8_t *p);
 
 #endif
