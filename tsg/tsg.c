@@ -742,7 +742,7 @@ tsg_get_timecode_agc_delays(struct tsg_softc *sc, caddr_t arg)
 }
 
 static int
-tsg_get_leap(struct tsg_softc *sc, caddr_t arg)
+tsg_get_clock_leap(struct tsg_softc *sc, caddr_t arg)
 {
 	uint8_t *argp = (uint8_t *) arg;
 
@@ -754,7 +754,7 @@ tsg_get_leap(struct tsg_softc *sc, caddr_t arg)
 }
 
 static int
-tsg_set_leap(struct tsg_softc *sc, caddr_t arg)
+tsg_set_clock_leap(struct tsg_softc *sc, caddr_t arg)
 {
 	uint8_t *argp = (uint8_t *)arg;
 
@@ -778,73 +778,44 @@ tsg_set_leap(struct tsg_softc *sc, caddr_t arg)
 	return 0;
 }
 
+
 static int
 tsg_ioctl(struct cdev *dev, u_long cmd, caddr_t arg, int fflag, struct thread *td)
 {
 	struct tsg_softc *sc = dev->si_drv1;
-	int error = EOPNOTSUPP;
 
-	switch (cmd) {
-	case TSG_GET_BOARD_MODEL:
-		error = tsg_get_board_model(sc, arg);
-		break;
-	case TSG_GET_BOARD_FIRMWARE:
-		error = tsg_get_board_firmware(sc, arg);
-		break;
-	case TSG_GET_BOARD_TEST_STATUS:
-		error = tsg_get_board_test_status(sc, arg);
-		break;
-	case TSG_GET_BOARD_J1:
-		error = tsg_get_board_j1(sc, arg);
-		break;
-	case TSG_SET_BOARD_J1:
-		error = tsg_set_board_j1(sc, arg);
-		break;
-	case TSG_GET_PULSE_FREQ:
-		error = tsg_get_pulse_freq(sc, arg);
-		break;
-	case TSG_SET_PULSE_FREQ:
-		error = tsg_set_pulse_freq(sc, arg);
-		break;
-	case TSG_GET_GPS_ANTENNA_STATUS:
-		error = tsg_get_gps_antenna_status(sc, arg);
-		break;
-	case TSG_GET_CLOCK_LOCK:
-		error = tsg_get_clock_lock(sc, arg);
-		break;
-	case TSG_GET_CLOCK_TIMECODE:
-		error = tsg_get_clock_timecode(sc, arg);
-		break;
-	case TSG_SET_CLOCK_TIMECODE:
-		error = tsg_set_clock_timecode(sc, arg);
-		break;
-	case TSG_GET_CLOCK_REF:
-		error = tsg_get_clock_ref(sc, arg);
-		break;
-	case TSG_SET_CLOCK_REF:
-		error = tsg_set_clock_ref(sc, arg);
-		break;
-	case TSG_GET_CLOCK_TIME:
-		error = tsg_get_clock_time(sc, arg);
-		break;
-	case TSG_GET_GPS_POSITION:
-		error = tsg_get_gps_position(sc, arg);
-		break;
-	case TSG_GET_GPS_SIGNAL:
-		error = tsg_get_gps_signal(sc, arg);
-		break;
-	case TSG_GET_TIMECODE_AGC_DELAYS:
-		error = tsg_get_timecode_agc_delays(sc, arg);
-		break;
-	case TSG_GET_CLOCK_LEAP:
-		error = tsg_get_leap(sc, arg);
-		break;
-	case TSG_SET_CLOCK_LEAP:
-		error = tsg_set_leap(sc, arg);
-		break;
-	}
+	typedef int (*handler)(struct tsg_softc *, caddr_t);
 
-	return error;
+	static struct dispatcher {
+		u_long	cmd;
+		handler	fcn;
+	} tab[] = {
+		{ TSG_GET_BOARD_MODEL,		tsg_get_board_model },
+		{ TSG_GET_BOARD_FIRMWARE,	tsg_get_board_firmware },
+		{ TSG_GET_BOARD_TEST_STATUS,	tsg_get_board_test_status },
+		{ TSG_GET_BOARD_J1,		tsg_get_board_j1 },
+		{ TSG_SET_BOARD_J1,		tsg_set_board_j1 },
+		{ TSG_GET_PULSE_FREQ,		tsg_get_pulse_freq },
+		{ TSG_SET_PULSE_FREQ,		tsg_set_pulse_freq },
+		{ TSG_GET_GPS_ANTENNA_STATUS,	tsg_get_gps_antenna_status },
+		{ TSG_GET_CLOCK_LOCK,		tsg_get_clock_lock },
+		{ TSG_GET_CLOCK_TIMECODE,	tsg_get_clock_timecode },
+		{ TSG_SET_CLOCK_TIMECODE,	tsg_set_clock_timecode },
+		{ TSG_GET_CLOCK_REF,		tsg_get_clock_ref },
+		{ TSG_SET_CLOCK_REF,		tsg_set_clock_ref },
+		{ TSG_GET_CLOCK_TIME,		tsg_get_clock_time },
+		{ TSG_GET_GPS_POSITION,		tsg_get_gps_position },
+		{ TSG_GET_GPS_SIGNAL,		tsg_get_gps_signal },
+		{ TSG_GET_TIMECODE_AGC_DELAYS,	tsg_get_timecode_agc_delays },
+		{ TSG_GET_CLOCK_LEAP,		tsg_get_clock_leap },
+		{ TSG_SET_CLOCK_LEAP,		tsg_set_clock_leap },
+		{ 0,				NULL },
+	};
+
+	for (struct dispatcher *p = tab; p->fcn; ++p)
+		if (p->cmd == cmd)
+			return (*p->fcn)(sc, arg);
+	return EOPNOTSUPP;
 }
 
 static device_method_t tsg_methods[] = {
