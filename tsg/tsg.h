@@ -141,10 +141,12 @@ struct tsg_agc_delays {
 
 #define	TSG_INSERT_LEAP		0x01
 #define	TSG_USE_TQ		0x02
+#define	TSG_SAVE_DAC		0x04
 
 #define	TSG_GET_CLOCK_LEAP		_IOR('T', 100, uint8_t)
 #define	TSG_SET_CLOCK_LEAP		_IOW('T', 101, uint8_t)
 
 #define	TSG_GET_CLOCK_DAC		_IOR('T', 110, uint16_t)
+#define	TSG_SAVE_CLOCK_DAC		_IO('T', 111)
 
 #endif

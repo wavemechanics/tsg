@@ -80,6 +80,7 @@ save(int fd)
 {
 	static struct node components[] = {
 		{ "board", "PCI board", save_board },
+		{ "clock", "clock-related params", save_clock },
 		{ NULL, NULL, NULL },
 	};
 

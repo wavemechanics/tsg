@@ -40,6 +40,8 @@
 #define	REG_LOCK_STATUS		0x105
 #define	REG_MISC_CONTROL	0x12c
 
+#define	UNUSED(x)	(x) __attribute__((unused))
+
 struct tsg_softc {
 	device_t	device;
 	struct cdev	*cdev;
@@ -794,6 +796,21 @@ tsg_get_clock_dac(struct tsg_softc *sc, caddr_t arg)
 }
 
 static int
+tsg_save_clock_dac(struct tsg_softc *sc, caddr_t UNUSED(arg))
+{
+	uint8_t buf;
+
+	lock(sc);
+	bus_read_region_1(sc->registers_resource, REG_MISC_CONTROL, &buf, 1);
+	buf &= (TSG_USE_TQ | TSG_INSERT_LEAP);	// clear all except use TQ and insert leap bits
+	buf |= TSG_SAVE_DAC;
+	bus_write_region_1(sc->registers_resource, REG_MISC_CONTROL, &buf, 1);
+	unlock(sc);
+
+	return 0;
+}
+
+static int
 tsg_ioctl(struct cdev *dev, u_long cmd, caddr_t arg, int fflag, struct thread *td)
 {
 	struct tsg_softc *sc = dev->si_drv1;
@@ -824,6 +841,7 @@ tsg_ioctl(struct cdev *dev, u_long cmd, caddr_t arg, int fflag, struct thread *t
 		{ TSG_GET_CLOCK_LEAP,		tsg_get_clock_leap },
 		{ TSG_SET_CLOCK_LEAP,		tsg_set_clock_leap },
 		{ TSG_GET_CLOCK_DAC,		tsg_get_clock_dac },
+		{ TSG_SAVE_CLOCK_DAC,		tsg_save_clock_dac },
 		{ 0,				NULL },
 	};
 

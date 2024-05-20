@@ -259,6 +259,12 @@ set_phase_compensation(int fd)
 	return 0;
 }
 
+static int
+save_dac(int fd)
+{
+	return tsg_save_clock_dac(fd);
+}
+
 int
 get_clock(int fd)
 {
@@ -292,6 +298,17 @@ set_clock(int fd)
 		{ "run", "generator run state", set_run },
 		{ "tz-offset", "timezone offset", set_tz_offset },
 		{ "phase-compensation", "phase compensation", set_phase_compensation },
+		{ NULL, NULL, NULL },
+	};
+
+	return walk(params, fd);
+}
+
+int
+save_clock(int fd)
+{
+	static struct node params[] = {
+		{ "dac", "DAC value", save_dac },
 		{ NULL, NULL, NULL },
 	};
 

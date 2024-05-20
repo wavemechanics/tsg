@@ -28,5 +28,6 @@ int tsg_get_timecode_agc_delays(int fd, struct tsg_agc_delays *p);
 int tsg_get_clock_leap(int fd, uint8_t *p);
 int tsg_set_clock_leap(int fd, uint8_t *p);
 int tsg_get_clock_dac(int fd, uint16_t *p);
+int tsg_save_clock_dac(int fd);
 
 #endif
