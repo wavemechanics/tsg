@@ -48,6 +48,8 @@ truthy(char *s)
 		{ 0, NULL }
 	};
 
+	if (s == NULL)
+		return -1;
 	int val = mapbydesc(tab, s, 2);
 	return val == 2 ? -1 : val;
 }

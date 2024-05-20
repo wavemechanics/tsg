@@ -104,21 +104,28 @@ set_leap(int fd)
 static int
 get_dst(int fd)
 {
-	printf("in get dst\n");
+	uint8_t dst;
+
+	if (tsg_get_clock_dst(fd, &dst) != 0)
+		return -1;
+	printf("DST: %s\n", dst ? "yes" : "no");
 	return 0;
 }
 
 static int
 set_dst(int fd)
 {
-	char *freq = gettok();
+	char *tok = gettok();
+	uint8_t dst;
+	int val;
 
-	printf("in set dst\n");
-	if (freq == NULL) {
-		printf("expected dst\n");
+	if ((val = truthy(tok)) == -1) {
+		printf("dst argument must be yes or no\n");
 		return -2;
 	}
-	return 0;
+	dst = val ? TSG_CLOCK_DST_ENABLE : 0;
+
+	return tsg_set_clock_dst(fd, &dst);
 }
 
 static struct map timecode_map[] = {

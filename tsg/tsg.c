@@ -38,6 +38,9 @@
 /* register addresses */
 #define	REG_HARDWARE_STATUS	0xfe
 #define	REG_LOCK_STATUS		0x105
+#define	REG_CONFIG		0x118	// Configuration Register #1
+#define		TSG_PRESET_TIME_READY	0x04
+#define		TSG_PRESET_POS_READY	0x80
 #define	REG_MISC_CONTROL	0x12c
 
 #define	UNUSED(x)	(x) __attribute__((unused))
@@ -480,9 +483,8 @@ tsg_get_clock_ref(struct tsg_softc *sc, caddr_t arg)
 {
 	uint8_t *argp = (uint8_t *)arg;
 
-	/* 0x118 is the Configration Register */
 	lock(sc);
-	bus_read_region_1(sc->registers_resource, 0x118, argp, 1);
+	bus_read_region_1(sc->registers_resource, REG_CONFIG, argp, 1);
 	unlock(sc);
 
 	*argp &= TSG_CLOCK_REF_MASK;
@@ -494,7 +496,6 @@ tsg_set_clock_ref(struct tsg_softc *sc, caddr_t arg)
 {
 	uint8_t *argp = (uint8_t *)arg;
 
-	/* 0x118 is the Configuration Register */
 	switch (*argp) {
 	case TSG_CLOCK_REF_GEN:
 	case TSG_CLOCK_REF_1PPS:
@@ -507,10 +508,10 @@ tsg_set_clock_ref(struct tsg_softc *sc, caddr_t arg)
 	}
 
 	lock(sc);
-	bus_read_region_1(sc->registers_resource, 0x118, sc->buf, 1);
+	bus_read_region_1(sc->registers_resource, REG_CONFIG, sc->buf, 1);
 	sc->buf[0] &= ~TSG_CLOCK_REF_MASK;	// clear ref bits
 	sc->buf[0] |= *argp;			// set new ref bits
-	bus_write_region_1(sc->registers_resource, 0x118, sc->buf, 1);
+	bus_write_region_1(sc->registers_resource, REG_CONFIG, sc->buf, 1);
 	unlock(sc);
 	return 0;
 }
@@ -811,6 +812,40 @@ tsg_save_clock_dac(struct tsg_softc *sc, caddr_t UNUSED(arg))
 }
 
 static int
+tsg_get_clock_dst(struct tsg_softc *sc, caddr_t arg)
+{
+	uint8_t *argp = (uint8_t *)arg;
+
+	lock(sc);
+	bus_read_region_1(sc->registers_resource, REG_CONFIG, argp, 1);
+	unlock(sc);
+	*argp &= TSG_CLOCK_DST_ENABLE;
+
+	return 0;
+}
+
+static int
+tsg_set_clock_dst(struct tsg_softc *sc, caddr_t arg)
+{
+	uint8_t *argp = (uint8_t *)arg;
+	uint8_t buf;
+
+	if (*argp != 0 && *argp != TSG_CLOCK_DST_ENABLE)
+		return ENODEV;
+
+	lock(sc);
+	bus_read_region_1(sc->registers_resource, REG_CONFIG, &buf, 1);
+	// clear the preset and dst bits
+	buf &= ~(TSG_PRESET_TIME_READY | TSG_PRESET_POS_READY | TSG_CLOCK_DST_ENABLE);
+	// set the dst bit
+	buf |= *argp;
+	bus_write_region_1(sc->registers_resource, REG_CONFIG, &buf, 1);
+	unlock(sc);
+
+	return 0;
+}
+
+static int
 tsg_ioctl(struct cdev *dev, u_long cmd, caddr_t arg, int fflag, struct thread *td)
 {
 	struct tsg_softc *sc = dev->si_drv1;
@@ -842,6 +877,8 @@ tsg_ioctl(struct cdev *dev, u_long cmd, caddr_t arg, int fflag, struct thread *t
 		{ TSG_SET_CLOCK_LEAP,		tsg_set_clock_leap },
 		{ TSG_GET_CLOCK_DAC,		tsg_get_clock_dac },
 		{ TSG_SAVE_CLOCK_DAC,		tsg_save_clock_dac },
+		{ TSG_GET_CLOCK_DST,		tsg_get_clock_dst },
+		{ TSG_SET_CLOCK_DST,		tsg_set_clock_dst },
 		{ 0,				NULL },
 	};
 

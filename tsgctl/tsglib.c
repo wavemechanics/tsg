@@ -133,3 +133,15 @@ tsg_save_clock_dac(int fd)
 {
 	return ioctl(fd, TSG_SAVE_CLOCK_DAC);
 }
+
+int
+tsg_get_clock_dst(int fd, uint8_t *p)
+{
+	return ioctl(fd, TSG_GET_CLOCK_DST, p);
+}
+
+int
+tsg_set_clock_dst(int fd, uint8_t *p)
+{
+	return ioctl(fd, TSG_SET_CLOCK_DST, p);
+}

@@ -74,6 +74,7 @@ struct tsg_board_firmware {
 #define	TSG_CLOCK_TIMECODE_IRIG_B_AM	0x00
 #define	TSG_CLOCK_TIMECODE_IRIG_B_DC	0x80
 #define	TSG_CLOCK_TIMECODE_MASK		0x83
+#define	TSG_CLOCK_DST_ENABLE		0x02
 
 #define	TSG_GET_CLOCK_TIMECODE	_IOR('T', 40, uint8_t)
 #define	TSG_SET_CLOCK_TIMECODE	_IOW('T', 41, uint8_t)
@@ -148,5 +149,8 @@ struct tsg_agc_delays {
 
 #define	TSG_GET_CLOCK_DAC		_IOR('T', 110, uint16_t)
 #define	TSG_SAVE_CLOCK_DAC		_IO('T', 111)
+
+#define	TSG_GET_CLOCK_DST		_IOR('T', 120, uint8_t)
+#define	TSG_SET_CLOCK_DST		_IOW('T', 121, uint8_t)
 
 #endif

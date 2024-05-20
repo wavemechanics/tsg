@@ -29,5 +29,7 @@ int tsg_get_clock_leap(int fd, uint8_t *p);
 int tsg_set_clock_leap(int fd, uint8_t *p);
 int tsg_get_clock_dac(int fd, uint16_t *p);
 int tsg_save_clock_dac(int fd);
+int tsg_get_clock_dst(int fd, uint8_t *p);
+int tsg_set_clock_dst(int fd, uint8_t *p);
 
 #endif
