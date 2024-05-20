@@ -53,7 +53,11 @@ get_lock(int fd)
 static int
 get_dac(int fd)
 {
-	printf("in get dac\n");
+	uint16_t dac;
+
+	if (tsg_get_clock_dac(fd, &dac) != 0)
+		return -1;
+	printf("DAC setting: 0x%04x\n", dac);
 	return 0;
 }
 

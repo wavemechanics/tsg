@@ -778,6 +778,20 @@ tsg_set_clock_leap(struct tsg_softc *sc, caddr_t arg)
 	return 0;
 }
 
+static int
+tsg_get_clock_dac(struct tsg_softc *sc, caddr_t arg)
+{
+	uint16_t *argp = (uint16_t *)arg;
+	char *fmt = "s";
+
+	lock(sc);
+	/* 0x11e is the low byte, and 0x11f is the high byte */
+	bus_read_region_1(sc->registers_resource, 0x11e, sc->buf, packlen(fmt));
+	unpack(sc->buf, fmt, argp);
+	unlock(sc);
+
+	return 0;
+}
 
 static int
 tsg_ioctl(struct cdev *dev, u_long cmd, caddr_t arg, int fflag, struct thread *td)
@@ -809,6 +823,7 @@ tsg_ioctl(struct cdev *dev, u_long cmd, caddr_t arg, int fflag, struct thread *t
 		{ TSG_GET_TIMECODE_AGC_DELAYS,	tsg_get_timecode_agc_delays },
 		{ TSG_GET_CLOCK_LEAP,		tsg_get_clock_leap },
 		{ TSG_SET_CLOCK_LEAP,		tsg_set_clock_leap },
+		{ TSG_GET_CLOCK_DAC,		tsg_get_clock_dac },
 		{ 0,				NULL },
 	};
 

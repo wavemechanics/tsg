@@ -1,5 +1,9 @@
 /*
  * tsg.c
+ *
+ * This extra layer might not seem helpful now, but I'm thinking
+ * something like this might make it easier to integrate TSG access
+ * into other languages like Go or Tcl later. We'll see.
  */
 
 #include "../tsg/tsg.h"
@@ -116,4 +120,10 @@ int
 tsg_set_clock_leap(int fd, uint8_t *p)
 {
 	return ioctl(fd, TSG_SET_CLOCK_LEAP, p);
+}
+
+int
+tsg_get_clock_dac(int fd, uint16_t *p)
+{
+	return ioctl(fd, TSG_GET_CLOCK_DAC, p);
 }
