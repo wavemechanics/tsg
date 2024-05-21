@@ -41,6 +41,7 @@
 #define	REG_CONFIG		0x118	// Configuration Register #1
 #define		TSG_PRESET_TIME_READY	0x04
 #define		TSG_PRESET_POS_READY	0x80
+#define	REG_TZ_OFFSET		0x120
 #define	REG_MISC_CONTROL	0x12c
 
 #define	UNUSED(x)	(x) __attribute__((unused))
@@ -86,6 +87,7 @@ static devclass_t tsg_devclass;
 #define	unlock(sc)	mtx_unlock(&(sc)->mtx)
 
 #include "pack.c"
+#include "ushort2bcd.c"
 
 static char *
 model2desc(int model)
@@ -880,6 +882,63 @@ tsg_set_clock_stop(struct tsg_softc *sc, caddr_t arg)
 }
 
 static int
+tsg_get_clock_tz_offset(struct tsg_softc *sc, caddr_t arg)
+{
+	struct tsg_tz_offset *argp = (struct tsg_tz_offset *)arg;
+	char *fmt = "n n c c";
+	uint8_t tens_min, units_min;
+	uint8_t tens_hour, units_hour;
+	uint8_t sign, dummy;
+
+	lock(sc);
+	bus_read_region_1(sc->registers_resource, REG_TZ_OFFSET, sc->buf, packlen(fmt));
+	unpack(sc->buf, fmt,
+		&tens_min,	&units_min,
+		&tens_hour,	&units_hour,
+		&sign,
+		&dummy
+	);
+	unlock(sc);
+
+	argp->sign = sign;
+	argp->hour = tens_hour * 10 + units_hour;
+	argp->min = tens_min * 10 + units_min;
+
+	return 0;
+}
+
+static int
+tsg_set_clock_tz_offset(struct tsg_softc *sc, caddr_t arg)
+{
+	struct tsg_tz_offset *argp = (struct tsg_tz_offset *)arg;
+	char *fmt = "n n c c";
+	uint8_t tens_min, units_min;
+	uint8_t tens_hour, units_hour;
+
+	if (argp->sign != '-' && argp->sign != '+')
+		return ENODEV;
+	if (argp->hour > 12)
+		return ENODEV;
+	if (argp->min > 59)
+		return ENODEV;
+
+	ushort2bcd(argp->hour, NULL, NULL, NULL, &tens_hour, &units_hour);
+	ushort2bcd(argp->min, NULL, NULL, NULL, &tens_min, &units_min);
+
+	lock(sc);
+	pack(sc->buf, fmt,
+		tens_min,	units_min,
+		tens_hour,	units_hour,
+		argp->sign,
+		0
+	);
+	bus_write_region_1(sc->registers_resource, REG_TZ_OFFSET, sc->buf, packlen(fmt));
+	unlock(sc);
+
+	return 0;
+}
+
+static int
 tsg_ioctl(struct cdev *dev, u_long cmd, caddr_t arg, int fflag, struct thread *td)
 {
 	struct tsg_softc *sc = dev->si_drv1;
@@ -915,6 +974,8 @@ tsg_ioctl(struct cdev *dev, u_long cmd, caddr_t arg, int fflag, struct thread *t
 		{ TSG_SET_CLOCK_DST,		tsg_set_clock_dst },
 		{ TSG_GET_CLOCK_STOP,		tsg_get_clock_stop },
 		{ TSG_SET_CLOCK_STOP,		tsg_set_clock_stop },
+		{ TSG_GET_CLOCK_TZ_OFFSET,	tsg_get_clock_tz_offset },
+		{ TSG_SET_CLOCK_TZ_OFFSET,	tsg_set_clock_tz_offset },
 		{ 0,				NULL },
 	};
 

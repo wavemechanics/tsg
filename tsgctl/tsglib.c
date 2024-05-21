@@ -157,3 +157,15 @@ tsg_set_clock_stop(int fd, uint8_t *p)
 {
 	return ioctl(fd, TSG_SET_CLOCK_STOP, p);
 }
+
+int
+tsg_get_clock_tz_offset(int fd, struct tsg_tz_offset *p)
+{
+	return ioctl(fd, TSG_GET_CLOCK_TZ_OFFSET, p);
+}
+
+int
+tsg_set_clock_tz_offset(int fd, struct tsg_tz_offset *p)
+{
+	return ioctl(fd, TSG_SET_CLOCK_TZ_OFFSET, p);
+}

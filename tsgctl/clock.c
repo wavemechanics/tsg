@@ -236,20 +236,47 @@ set_stop(int fd)
 static int
 get_tz_offset(int fd)
 {
-	printf("in get tz offset\n");
+	struct tsg_tz_offset off;
+
+	if (tsg_get_clock_tz_offset(fd, &off) == -1)
+		return -1;
+	printf("TZ offset: %c%d:%02d\n", off.sign, off.hour, off.min);
 	return 0;
 }
 
 static int
 set_tz_offset(int fd)
 {
-	char *freq = gettok();
+	char *tok = gettok();
+	char sign;
+	unsigned hour, min;
+	char *msg = "offset argument must be like +|-HH:MM";
 
-	printf("in set tz offset\n");
-	if (freq == NULL) {
-		printf("expected tz offset\n");
+	if (tok == NULL) {
+		puts(msg);
 		return -2;
 	}
+	if (sscanf(tok, "%c%u:%u", &sign, &hour, &min) != 3) {
+		puts(msg);
+		return -2;
+	}
+	if (sign != '-' && sign != '+') {
+		puts(msg);
+		return -2;
+	}
+	if (hour > 12 || min > 59) {
+		puts(msg);
+		return -2;
+	}
+
+	struct tsg_tz_offset off = {
+		.sign = sign,
+		.hour = hour,
+		.min = min,
+	};
+	if (tsg_set_clock_tz_offset(fd, &off) == -1)
+		return -1;
+
 	return 0;
 }
 

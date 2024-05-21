@@ -157,4 +157,13 @@ struct tsg_agc_delays {
 #define	TSG_GET_CLOCK_STOP		_IOR('T', 130, uint8_t)
 #define	TSG_SET_CLOCK_STOP		_IOW('T', 131, uint8_t)
 
+struct tsg_tz_offset {
+	uint8_t sign;
+	uint8_t hour;
+	uint8_t min;
+};
+
+#define TSG_GET_CLOCK_TZ_OFFSET		_IOR('T', 140, struct tsg_tz_offset)
+#define TSG_SET_CLOCK_TZ_OFFSET		_IOW('T', 141, struct tsg_tz_offset)
+
 #endif

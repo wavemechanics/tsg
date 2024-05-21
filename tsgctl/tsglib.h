@@ -33,5 +33,7 @@ int tsg_get_clock_dst(int fd, uint8_t *p);
 int tsg_set_clock_dst(int fd, uint8_t *p);
 int tsg_get_clock_stop(int fd, uint8_t *p);
 int tsg_set_clock_stop(int fd, uint8_t *p);
+int tsg_get_clock_tz_offset(int fd, struct tsg_tz_offset *p);
+int tsg_set_clock_tz_offset(int fd, struct tsg_tz_offset *p);
 
 #endif
