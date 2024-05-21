@@ -4,8 +4,11 @@
 
 #ifdef MAIN
 #include <stdio.h>
+#include <stdlib.h>
 #include <stdarg.h>
+#include <assert.h>
 #include <sys/types.h>
+typedef uint32_t bus_size_t;
 #endif
 
 static bus_size_t
@@ -67,27 +70,27 @@ pack(uint8_t *buf, char *fmt, ...)
 			break;
 		case 's':
 			s = va_arg(args, unsigned int);
-			*bp++ = s >> 8;
 			*bp++ = s;
+			*bp++ = s >> 8;
 			break;
 		case 'S':
 			S = va_arg(args, int);
-			*bp++ = S >> 8;
 			*bp++ = S;
+			*bp++ = S >> 8;
 			break;
 		case 'l':
 			l = va_arg(args, uint32_t);
-			*bp++ = l >> 24;
-			*bp++ = l >> 16;
-			*bp++ = l >> 8;
 			*bp++ = l;
+			*bp++ = l >> 8;
+			*bp++ = l >> 16;
+			*bp++ = l >> 24;
 			break;
 		case 'L':
 			L = va_arg(args, int32_t);
-			*bp = L >> 24;
-			*bp++ = L >> 16;
-			*bp++ = L >> 8;
 			*bp++ = L;
+			*bp++ = L >> 8;
+			*bp++ = L >> 16;
+			*bp++ = L >> 24;
 			break;
 		default:
 			va_end(args);
@@ -186,26 +189,31 @@ unpack(uint8_t *buf, char *fmt, ...)
 int
 main(int argc, char **argv)
 {
-	uint8_t buf[] = {'a', 'b', 0x10, 0x20, 0x30, 0x40, 0x12, 0x34, 0x56, 0x7a, 0x65};
-	uint8_t a = '-';
-	int8_t b = '-';
-	uint16_t s = 0;
-	int16_t S = 0;
-	uint32_t l = 0;
-	uint8_t high =0;
-	uint8_t low =0;
-	char *fmt = "cC sS l n";
+	uint8_t buf[20];
+	uint8_t		c1 = '-',		c2;
+	int8_t		C1 = -9,		C2;
+	uint16_t	s1 = 1234,		s2;
+	int16_t		S1 = -1234,		S2;
+	uint32_t	l1 = 123456789,		l2;
+	int32_t		L1 = -123456789,	L2;
+	uint8_t		high1 = 0xa,		high2;
+	uint8_t		low1 = 0xb,		low2;
+	char *fmt = "n c C s S l L";
 
-	printf("%d\n", packlen(fmt));
-	//unpack(buf, fmt, &a, &b, &s, &S, &l, &high, &low);
-	unpack(buf, fmt, NULL, NULL, NULL, NULL, &l, NULL, NULL);
+	assert(packlen(fmt) == 15);
 
-	printf("a=%c\n", a);
-	printf("b=%c\n", b);
-	printf("0x%x\n", s);
-	printf("%d\n", S);
-	printf("0x%lx\n", (unsigned long)l);
-	printf("high=0x%x\n", high);
-	printf("low=0x%x\n", low);
+	pack(buf, fmt, high1, low1, c1, C1, s1, S1, l1, L1);
+	unpack(buf, fmt, &high2, &low2, &c2, &C2, &s2, &S2, &l2, &L2);
+
+	assert(high2 == high1);
+	assert(low2 == low1);
+	assert(c2 == c1);
+	assert(C2 == C1);
+	assert(s2 == s1);
+	assert(S2 == S1);
+	assert(l2 == l1);
+	assert(L2 == L1);
+
+	exit(0);
 }
 #endif
