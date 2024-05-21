@@ -283,21 +283,33 @@ set_tz_offset(int fd)
 static int
 get_phase_compensation(int fd)
 {
-	printf("in get phase compensation\n");
+	int32_t offset;
+
+	if (tsg_get_clock_phase_compensation(fd, &offset) == -1)
+		return -1;
+	printf("phase compensation: %ld nsec\n", (long)offset);
 	return 0;
 }
 
 static int
 set_phase_compensation(int fd)
 {
-	char *freq = gettok();
+	char *tok = gettok();
+	long n;
+	int32_t nsec;
+	char *msg = "phase compensation argument must be number of nanoseconds";
 
-	printf("in set phase compensation\n");
-	if (freq == NULL) {
-		printf("expected phase compensation\n");
+	if (tok == NULL) {
+		puts(msg);
 		return -2;
 	}
-	return 0;
+	if (sscanf(tok, "%ld", &n) != 1) {
+		puts(msg);
+		return -2;
+	}
+	nsec = n;
+
+	return tsg_set_clock_phase_compensation(fd, &nsec);
 }
 
 static int

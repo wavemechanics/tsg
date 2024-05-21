@@ -42,6 +42,7 @@
 #define		TSG_PRESET_TIME_READY	0x04
 #define		TSG_PRESET_POS_READY	0x80
 #define	REG_TZ_OFFSET		0x120
+#define	REG_PHASE_COMP		0x124
 #define	REG_MISC_CONTROL	0x12c
 
 #define	UNUSED(x)	(x) __attribute__((unused))
@@ -939,6 +940,83 @@ tsg_set_clock_tz_offset(struct tsg_softc *sc, caddr_t arg)
 }
 
 static int
+tsg_get_clock_phase_compensation(struct tsg_softc *sc, caddr_t arg)
+{
+	int32_t *argp = (int32_t *)arg;
+	char *fmt = "S c";
+	int16_t usec;
+	uint8_t hnsec;
+
+	lock(sc);
+	bus_read_region_1(sc->registers_resource, REG_PHASE_COMP, sc->buf, packlen(fmt));
+	unpack(sc->buf, fmt, &usec, &hnsec);
+	unlock(sc);
+
+	uprintf("usec=%d nsec=%d\n", usec, hnsec);
+	*argp = usec * 1000;
+	if (!sc->new_model)
+		return 0;
+
+	if (usec < 0)
+		*argp -= hnsec * 100;
+	else
+		*argp += hnsec * 100;
+	return 0;
+}
+
+static int
+tsg_set_clock_phase_compensation_old(struct tsg_softc *sc, caddr_t arg)
+{
+	int32_t *argp = (int32_t *)arg;
+	int16_t usec;
+	char *fmt = "S";
+
+	usec = *argp / 1000;	// argp is in nanoseconds
+	if (usec < -1000 || usec > 1000)
+		return ENODEV;
+
+	lock(sc);
+	pack(sc->buf, fmt, usec);
+	bus_write_region_1(sc->registers_resource, REG_PHASE_COMP, sc->buf, packlen(fmt));
+	unlock(sc);
+
+	return 0;
+}
+
+static int
+tsg_set_clock_phase_compensation_new(struct tsg_softc *sc, caddr_t arg)
+{
+	int32_t *argp = (int32_t *)arg;
+	int16_t usec;
+	int8_t hnsec;
+	char *fmt = "S c";
+
+	usec = *argp / 1000;	// argp is in nanoseconds
+	if (usec < -800 || usec > 800)
+		return ENODEV;
+
+	hnsec = (*argp % 1000) / 100;
+	if (hnsec < 0)
+		hnsec = -hnsec;
+
+	lock(sc);
+	pack(sc->buf, fmt, usec, hnsec);
+	bus_write_region_1(sc->registers_resource, REG_PHASE_COMP, sc->buf, packlen(fmt));
+	unlock(sc);
+
+	return 0;
+}
+
+static int
+tsg_set_clock_phase_compensation(struct tsg_softc *sc, caddr_t arg)
+{
+	if (sc->new_model)
+		return tsg_set_clock_phase_compensation_new(sc, arg);
+	else
+		return tsg_set_clock_phase_compensation_old(sc, arg);
+}
+
+static int
 tsg_ioctl(struct cdev *dev, u_long cmd, caddr_t arg, int fflag, struct thread *td)
 {
 	struct tsg_softc *sc = dev->si_drv1;
@@ -976,6 +1054,8 @@ tsg_ioctl(struct cdev *dev, u_long cmd, caddr_t arg, int fflag, struct thread *t
 		{ TSG_SET_CLOCK_STOP,		tsg_set_clock_stop },
 		{ TSG_GET_CLOCK_TZ_OFFSET,	tsg_get_clock_tz_offset },
 		{ TSG_SET_CLOCK_TZ_OFFSET,	tsg_set_clock_tz_offset },
+		{ TSG_GET_CLOCK_PHASE_COMP,	tsg_get_clock_phase_compensation },
+		{ TSG_SET_CLOCK_PHASE_COMP,	tsg_set_clock_phase_compensation },
 		{ 0,				NULL },
 	};
 

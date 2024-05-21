@@ -35,5 +35,7 @@ int tsg_get_clock_stop(int fd, uint8_t *p);
 int tsg_set_clock_stop(int fd, uint8_t *p);
 int tsg_get_clock_tz_offset(int fd, struct tsg_tz_offset *p);
 int tsg_set_clock_tz_offset(int fd, struct tsg_tz_offset *p);
+int tsg_get_clock_phase_compensation(int fd, int32_t *p);
+int tsg_set_clock_phase_compensation(int fd, int32_t *p);
 
 #endif

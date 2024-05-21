@@ -169,3 +169,15 @@ tsg_set_clock_tz_offset(int fd, struct tsg_tz_offset *p)
 {
 	return ioctl(fd, TSG_SET_CLOCK_TZ_OFFSET, p);
 }
+
+int
+tsg_get_clock_phase_compensation(int fd, int32_t *p)
+{
+	return ioctl(fd, TSG_GET_CLOCK_PHASE_COMP, p);
+}
+
+int
+tsg_set_clock_phase_compensation(int fd, int32_t *p)
+{
+	return ioctl(fd, TSG_SET_CLOCK_PHASE_COMP, p);
+}

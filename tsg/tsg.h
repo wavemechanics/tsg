@@ -166,4 +166,7 @@ struct tsg_tz_offset {
 #define TSG_GET_CLOCK_TZ_OFFSET		_IOR('T', 140, struct tsg_tz_offset)
 #define TSG_SET_CLOCK_TZ_OFFSET		_IOW('T', 141, struct tsg_tz_offset)
 
+#define TSG_GET_CLOCK_PHASE_COMP	_IOR('T', 150, int32_t)
+#define TSG_SET_CLOCK_PHASE_COMP	_IOW('T', 151, int32_t)
+
 #endif
