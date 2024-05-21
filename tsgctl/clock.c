@@ -207,23 +207,30 @@ set_reference(int fd)
 }
 
 static int
-get_run(int fd)
+get_stop(int fd)
 {
-	printf("in get run state\n");
+	uint8_t stop;
+
+	if (tsg_get_clock_stop(fd, &stop) == -1)
+		return -1;
+	printf("clock stopped: %s\n", stop ? "yes" : "no");
 	return 0;
 }
 
 static int
-set_run(int fd)
+set_stop(int fd)
 {
-	char *freq = gettok();
+        char *tok = gettok();
+        uint8_t stop;
+        int val;
 
-	printf("in set run state\n");
-	if (freq == NULL) {
-		printf("expected run state\n");
-		return -2;
-	}
-	return 0;
+        if ((val = truthy(tok)) == -1) {
+                printf("stop argument must be yes or no\n");
+                return -2;
+        }
+        stop = val ? TSG_CLOCK_STOP : 0;
+
+        return tsg_set_clock_stop(fd, &stop);
 }
 
 static int
@@ -283,7 +290,7 @@ get_clock(int fd)
 		{ "dst", "DST status", get_dst },
 		{ "timecode", "input timecode format", get_timecode },
 		{ "reference", "sync source", get_reference },
-		{ "run", "generator run state", get_run },
+		{ "stop", "generator stop state", get_stop },
 		{ "tz-offset", "timezone offset", get_tz_offset },
 		{ "phase-compensation", "phase compensation", get_phase_compensation },
 		{ NULL, NULL, NULL },
@@ -302,7 +309,7 @@ set_clock(int fd)
 		{ "dst", "DST status", set_dst },
 		{ "timecode", "input timecode format", set_timecode },
 		{ "reference", "sync source", set_reference },
-		{ "run", "generator run state", set_run },
+		{ "stop", "generator stop state", set_stop },
 		{ "tz-offset", "timezone offset", set_tz_offset },
 		{ "phase-compensation", "phase compensation", set_phase_compensation },
 		{ NULL, NULL, NULL },

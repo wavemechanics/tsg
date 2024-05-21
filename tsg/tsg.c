@@ -846,6 +846,40 @@ tsg_set_clock_dst(struct tsg_softc *sc, caddr_t arg)
 }
 
 static int
+tsg_get_clock_stop(struct tsg_softc *sc, caddr_t arg)
+{
+	uint8_t *argp = (uint8_t *)arg;
+
+	lock(sc);
+	bus_read_region_1(sc->registers_resource, REG_CONFIG, argp, 1);
+	unlock(sc);
+	*argp &= TSG_CLOCK_STOP;
+
+	return 0;
+}
+
+static int
+tsg_set_clock_stop(struct tsg_softc *sc, caddr_t arg)
+{
+	uint8_t *argp = (uint8_t *)arg;
+	uint8_t buf;
+
+	if (*argp != 0 && *argp != TSG_CLOCK_STOP)
+		return ENODEV;
+
+	lock(sc);
+	bus_read_region_1(sc->registers_resource, REG_CONFIG, &buf, 1);
+	// clear the preset and clock stop bits
+	buf &= ~(TSG_PRESET_TIME_READY | TSG_PRESET_POS_READY | TSG_CLOCK_STOP);
+	// set the generator stop bit
+	buf |= *argp;
+	bus_write_region_1(sc->registers_resource, REG_CONFIG, &buf, 1);
+	unlock(sc);
+
+	return 0;
+}
+
+static int
 tsg_ioctl(struct cdev *dev, u_long cmd, caddr_t arg, int fflag, struct thread *td)
 {
 	struct tsg_softc *sc = dev->si_drv1;
@@ -879,6 +913,8 @@ tsg_ioctl(struct cdev *dev, u_long cmd, caddr_t arg, int fflag, struct thread *t
 		{ TSG_SAVE_CLOCK_DAC,		tsg_save_clock_dac },
 		{ TSG_GET_CLOCK_DST,		tsg_get_clock_dst },
 		{ TSG_SET_CLOCK_DST,		tsg_set_clock_dst },
+		{ TSG_GET_CLOCK_STOP,		tsg_get_clock_stop },
+		{ TSG_SET_CLOCK_STOP,		tsg_set_clock_stop },
 		{ 0,				NULL },
 	};
 
