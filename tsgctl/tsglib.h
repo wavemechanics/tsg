@@ -38,5 +38,7 @@ int tsg_set_clock_tz_offset(int fd, struct tsg_tz_offset *p);
 int tsg_get_clock_phase_compensation(int fd, int32_t *p);
 int tsg_set_clock_phase_compensation(int fd, int32_t *p);
 int tsg_get_timecode_quality(int fd, struct tsg_timecode_quality *p);
+int tsg_get_use_timecode_quality(int fd, uint8_t *p);
+int tsg_set_use_timecode_quality(int fd, uint8_t *p);
 
 #endif

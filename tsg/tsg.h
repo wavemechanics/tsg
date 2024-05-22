@@ -176,4 +176,7 @@ struct tsg_timecode_quality {
 
 #define	TSG_GET_TIMECODE_QUALITY	_IOR('T', 160, struct tsg_timecode_quality)
 
+#define	TSG_GET_USE_TIMECODE_QUALITY	_IOR('T', 170, uint8_t)
+#define	TSG_SET_USE_TIMECODE_QUALITY	_IOW('T', 171, uint8_t)
+
 #endif

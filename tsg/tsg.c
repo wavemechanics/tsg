@@ -1056,6 +1056,43 @@ tsg_get_timecode_quality(struct tsg_softc *sc, caddr_t arg)
 }
 
 static int
+tsg_get_use_timecode_quality(struct tsg_softc *sc, caddr_t arg)
+{
+	uint8_t *argp = (uint8_t *)arg;
+
+	if (!sc->new_model)
+		return EOPNOTSUPP;
+
+	lock(sc);
+	bus_read_region_1(sc->registers_resource, REG_MISC_CONTROL, argp, 1);
+	unlock(sc);
+
+	*argp &= TSG_USE_TQ;
+	return 0;
+}
+
+static int
+tsg_set_use_timecode_quality(struct tsg_softc *sc, caddr_t arg)
+{
+	uint8_t *argp = (uint8_t *)arg;
+	uint8_t buf;
+
+	if (!sc->new_model)
+		return EOPNOTSUPP;
+	if (*argp != 0 && *argp != TSG_USE_TQ)
+		return ENODEV;
+
+	lock(sc);
+	bus_read_region_1(sc->registers_resource, REG_MISC_CONTROL, &buf, 1);
+	buf &= TSG_INSERT_LEAP;	// clear all but the leap flag
+	buf |= *argp;		// set use TQ value
+	bus_write_region_1(sc->registers_resource, REG_MISC_CONTROL, &buf, 1);
+	unlock(sc);
+
+	return 0;
+}
+
+static int
 tsg_ioctl(struct cdev *dev, u_long cmd, caddr_t arg, int fflag, struct thread *td)
 {
 	struct tsg_softc *sc = dev->si_drv1;
@@ -1096,6 +1133,8 @@ tsg_ioctl(struct cdev *dev, u_long cmd, caddr_t arg, int fflag, struct thread *t
 		{ TSG_GET_CLOCK_PHASE_COMP,	tsg_get_clock_phase_compensation },
 		{ TSG_SET_CLOCK_PHASE_COMP,	tsg_set_clock_phase_compensation },
 		{ TSG_GET_TIMECODE_QUALITY,	tsg_get_timecode_quality },
+		{ TSG_GET_USE_TIMECODE_QUALITY,	tsg_get_use_timecode_quality },
+		{ TSG_SET_USE_TIMECODE_QUALITY,	tsg_set_use_timecode_quality },
 		{ 0,				NULL },
 	};
 

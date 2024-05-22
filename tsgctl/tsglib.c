@@ -187,3 +187,15 @@ tsg_get_timecode_quality(int fd, struct tsg_timecode_quality *p)
 {
 	return ioctl(fd, TSG_GET_TIMECODE_QUALITY, p);
 }
+
+int
+tsg_get_use_timecode_quality(int fd, uint8_t *p)
+{
+	return ioctl(fd, TSG_GET_USE_TIMECODE_QUALITY, p);
+}
+
+int
+tsg_set_use_timecode_quality(int fd, uint8_t *p)
+{
+	return ioctl(fd, TSG_SET_USE_TIMECODE_QUALITY, p);
+}

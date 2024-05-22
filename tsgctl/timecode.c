@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include "gettok.h"
 #include "node.h"
+#include "map.h"
 #include "tsglib.h"
 #include "timecode.h"
 
@@ -37,16 +38,30 @@ get_quality(int fd)
 }
 
 static int
-set_quality(int fd)
+get_use_quality(int fd)
 {
-	char *quality = gettok();
+	uint8_t use;
 
-	printf("in set quality\n");
-	if (quality == NULL) {
-		printf("expected quality\n");
+	if (tsg_get_use_timecode_quality(fd, &use) == -1)
+		return -1;
+	printf("use timecode quality: %s\n", use ? "yes" : "no");
+	return 0;
+}
+
+static int
+set_use_quality(int fd)
+{
+	char *tok = gettok();
+	int val;
+	uint8_t use;
+
+	if ((val = truthy(tok)) == -1) {
+		puts("use-quality must be yes or no");
 		return -2;
 	}
-	return 0;
+	use = val ? TSG_USE_TQ : 0;
+
+	return tsg_set_use_timecode_quality(fd, &use);
 }
 
 static int
@@ -100,6 +115,7 @@ get_timecode(int fd)
 	static struct node params[] = {
 		{ "format", "timecode format", get_format },
 		{ "quality", "timecode quality bits", get_quality },
+		{ "use-quality", "use timecode quality bits", get_use_quality },
 		{ "calibration", "calibration code", get_calibration },
 		{ "agc-delays", "AGC delays", get_agc_delays },
 		{ NULL, NULL, NULL },
@@ -113,7 +129,7 @@ set_timecode(int fd)
 {
 	static struct node params[] = {
 		{ "format", "timecode format", set_format },
-		{ "quality", "use timecode quality", set_quality },
+		{ "use-quality", "use timecode quality", set_use_quality },
 		{ "calibration", "start calibration", set_calibration },
 		{ "agc-delays", "AGC delays", set_agc_delays },
 		{ NULL, NULL, NULL },

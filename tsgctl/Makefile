@@ -22,7 +22,7 @@ clock.o: gettok.h node.h tsglib.h clock.h map.h
 
 gps.o: node.h tsglib.h gps.h
 
-timecode.o: gettok.h node.h timecode.h tsglib.h
+timecode.o: gettok.h node.h timecode.h tsglib.h map.h
 
 board.o: gettok.h node.h board.h tsglib.h map.h
 
