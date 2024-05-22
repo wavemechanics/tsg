@@ -41,6 +41,8 @@
 #define	REG_CONFIG		0x118	// Configuration Register #1
 #define		TSG_PRESET_TIME_READY	0x04
 #define		TSG_PRESET_POS_READY	0x80
+#define	REG_TIMECODE_QUALITY	0x11d
+#define		TSG_QUALITY_NOT_LOCKED	0x80
 #define	REG_TZ_OFFSET		0x120
 #define	REG_PHASE_COMP		0x124
 #define	REG_MISC_CONTROL	0x12c
@@ -1017,6 +1019,43 @@ tsg_set_clock_phase_compensation(struct tsg_softc *sc, caddr_t arg)
 }
 
 static int
+tsg_get_timecode_quality(struct tsg_softc *sc, caddr_t arg)
+{
+	struct tsg_timecode_quality *argp = (struct tsg_timecode_quality *)arg;
+	char *fmt = "n";
+	uint8_t buf;
+
+	if (!sc->new_model)
+		return EOPNOTSUPP;
+
+	lock(sc);
+	bus_read_region_1(sc->registers_resource, REG_TIMECODE_QUALITY, &buf, packlen(fmt));
+	unlock(sc);
+
+	unpack(&buf, fmt, &argp->level, &argp->locked);
+	argp->locked &= TSG_QUALITY_NOT_LOCKED;		// clear unrelated bits
+	argp->locked |= ~TSG_QUALITY_NOT_LOCKED;	// flip not locked bit
+	switch (argp->level) {
+	case 0x01:
+		argp->level = 1;
+		break;
+	case 0x02:
+		argp->level = 2;
+		break;
+	case 0x04:
+		argp->level = 3;
+		break;
+	case 0x08:
+		argp->level = 4;
+		break;
+	default:
+		argp->level = 0;
+		break;
+	}
+	return 0;
+}
+
+static int
 tsg_ioctl(struct cdev *dev, u_long cmd, caddr_t arg, int fflag, struct thread *td)
 {
 	struct tsg_softc *sc = dev->si_drv1;
@@ -1056,6 +1095,7 @@ tsg_ioctl(struct cdev *dev, u_long cmd, caddr_t arg, int fflag, struct thread *t
 		{ TSG_SET_CLOCK_TZ_OFFSET,	tsg_set_clock_tz_offset },
 		{ TSG_GET_CLOCK_PHASE_COMP,	tsg_get_clock_phase_compensation },
 		{ TSG_SET_CLOCK_PHASE_COMP,	tsg_set_clock_phase_compensation },
+		{ TSG_GET_TIMECODE_QUALITY,	tsg_get_timecode_quality },
 		{ 0,				NULL },
 	};
 

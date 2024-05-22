@@ -181,3 +181,9 @@ tsg_set_clock_phase_compensation(int fd, int32_t *p)
 {
 	return ioctl(fd, TSG_SET_CLOCK_PHASE_COMP, p);
 }
+
+int
+tsg_get_timecode_quality(int fd, struct tsg_timecode_quality *p)
+{
+	return ioctl(fd, TSG_GET_TIMECODE_QUALITY, p);
+}

@@ -27,7 +27,12 @@ set_format(int fd)
 static int
 get_quality(int fd)
 {
-	printf("in get timecode quality\n");
+	struct tsg_timecode_quality qual;
+
+	if (tsg_get_timecode_quality(fd, &qual) == -1)
+		return -1;
+	printf("timecode source locked: %s\n", qual.locked ? "yes" : "no");
+	printf("timecode source quality level: %d\n", qual.level);
 	return 0;
 }
 

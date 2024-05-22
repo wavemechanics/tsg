@@ -169,4 +169,11 @@ struct tsg_tz_offset {
 #define TSG_GET_CLOCK_PHASE_COMP	_IOR('T', 150, int32_t)
 #define TSG_SET_CLOCK_PHASE_COMP	_IOW('T', 151, int32_t)
 
+struct tsg_timecode_quality {
+	uint8_t locked;
+	uint8_t level;
+};
+
+#define	TSG_GET_TIMECODE_QUALITY	_IOR('T', 160, struct tsg_timecode_quality)
+
 #endif
