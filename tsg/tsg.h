@@ -179,4 +179,7 @@ struct tsg_timecode_quality {
 #define	TSG_GET_USE_TIMECODE_QUALITY	_IOR('T', 170, uint8_t)
 #define	TSG_SET_USE_TIMECODE_QUALITY	_IOW('T', 171, uint8_t)
 
+#define	TSG_GET_SYNTH_FREQ		_IOR('T', 180, uint32_t)
+#define	TSG_SET_SYNTH_FREQ		_IOW('T', 181, uint32_t)
+
 #endif

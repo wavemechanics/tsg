@@ -1,26 +1,39 @@
 #include <stdio.h>
 #include "gettok.h"
 #include "node.h"
+#include "tsglib.h"
 #include "synth.h"
 
 static int
 get_synth_freq(int fd)
 {
-	printf("in get synth freq\n");
+	uint32_t freq;
+
+	if (tsg_get_synth_freq(fd, &freq) == -1)
+		return -1;
+	printf("synth freq: %lu Hz\n", (unsigned long)freq);
 	return 0;
 }
 
 static int
 set_synth_freq(int fd)
 {
-	char *freq = gettok();
+	char *tok = gettok();
+	unsigned long n;
+	uint32_t freq;
+	char *msg = "set freq 1..1000000";
 
-	printf("in set synth freq\n");
-	if (freq == NULL) {
-		printf("expected frequency\n");
+	if (tok == NULL) {
+		puts(msg);
 		return -2;
 	}
-	return 0;
+	if (sscanf(tok, "%lu", &n) != 1) {
+		puts(msg);
+		return -2;
+	}
+	freq = n;
+
+	return tsg_set_synth_freq(fd, &freq);
 }
 
 static int
@@ -87,7 +100,7 @@ int
 set_synth(int fd)
 {
 	static struct node params[] = {
-		{ "freq", "synth generator frequency", set_synth_freq },
+		{ "freq", "synth frequency", set_synth_freq },
 		{ "edge", "synth on-time edge", set_synth_edge },
 		{ "enable", "synth enable state", set_synth_enable },
 		{ NULL, NULL, NULL },

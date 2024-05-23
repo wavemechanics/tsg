@@ -41,5 +41,7 @@ int tsg_set_clock_phase_compensation(int fd, int32_t *p);
 int tsg_get_timecode_quality(int fd, struct tsg_timecode_quality *p);
 int tsg_get_use_timecode_quality(int fd, uint8_t *p);
 int tsg_set_use_timecode_quality(int fd, uint8_t *p);
+int tsg_get_synth_freq(int fd, uint32_t *p);
+int tsg_set_synth_freq(int fd, uint32_t *p);
 
 #endif

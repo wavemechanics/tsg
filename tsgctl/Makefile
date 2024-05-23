@@ -16,7 +16,7 @@ action.o: node.h pulse.h synth.h clock.h gps.h action.h timecode.h
 
 pulse.o: gettok.h node.h pulse.h tsglib.h map.h
 
-synth.o: gettok.h node.h synth.h
+synth.o: gettok.h node.h synth.h tsglib.h
 
 clock.o: gettok.h node.h tsglib.h clock.h map.h
 

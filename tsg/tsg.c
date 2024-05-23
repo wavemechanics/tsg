@@ -45,7 +45,10 @@
 #define		TSG_QUALITY_NOT_LOCKED	0x80
 #define	REG_TZ_OFFSET		0x120
 #define	REG_PHASE_COMP		0x124
+#define	REG_SYNTH_FREQ		0x128
 #define	REG_MISC_CONTROL	0x12c
+#define	REG_SYNTH_CONTROL	0x12d
+#define		TSG_SYNTH_LOAD	0x02
 
 #define	UNUSED(x)	(x) __attribute__((unused))
 
@@ -1214,6 +1217,45 @@ tsg_set_use_timecode_quality(struct tsg_softc *sc, caddr_t arg)
 }
 
 static int
+tsg_get_synth_freq(struct tsg_softc *sc, caddr_t arg)
+{
+	uint32_t *argp = (uint32_t *)arg;
+	char *fmt = "l";
+
+	if (!sc->new_model)
+		return EOPNOTSUPP;
+
+	lock(sc);
+	bus_read_region_1(sc->registers_resource, REG_SYNTH_FREQ, sc->buf, packlen(fmt));
+	unpack(sc->buf, fmt, argp);
+	unlock(sc);
+
+	return 0;
+}
+
+static int
+tsg_set_synth_freq(struct tsg_softc *sc, caddr_t arg)
+{
+	uint32_t *argp = (uint32_t *)arg;
+	char *fmt = "l";
+
+	if (!sc->new_model)
+		return EOPNOTSUPP;
+	if (*argp < 1 || *argp > 1000000)
+		return EINVAL;
+
+	lock(sc);
+	pack(sc->buf, fmt, *argp);
+	bus_write_region_1(sc->registers_resource, REG_SYNTH_FREQ, sc->buf, packlen(fmt));
+
+	bus_read_region_1(sc->registers_resource, REG_SYNTH_CONTROL, sc->buf, 1);
+	sc->buf[0] |= TSG_SYNTH_LOAD;
+	bus_write_region_1(sc->registers_resource, REG_SYNTH_CONTROL, sc->buf, 1);
+	unlock(sc);
+	return 0;
+}
+
+static int
 tsg_ioctl(struct cdev *dev, u_long cmd, caddr_t arg, int fflag, struct thread *td)
 {
 	struct tsg_softc *sc = dev->si_drv1;
@@ -1257,6 +1299,8 @@ tsg_ioctl(struct cdev *dev, u_long cmd, caddr_t arg, int fflag, struct thread *t
 		{ TSG_GET_TIMECODE_QUALITY,	tsg_get_timecode_quality },
 		{ TSG_GET_USE_TIMECODE_QUALITY,	tsg_get_use_timecode_quality },
 		{ TSG_SET_USE_TIMECODE_QUALITY,	tsg_set_use_timecode_quality },
+		{ TSG_GET_SYNTH_FREQ,		tsg_get_synth_freq },
+		{ TSG_SET_SYNTH_FREQ,		tsg_set_synth_freq },
 		{ 0,				NULL },
 	};
 
