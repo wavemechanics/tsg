@@ -537,8 +537,6 @@ tsg_get_clock_time(struct tsg_softc *sc, caddr_t arg)
 
 	lock(sc);
 	bus_write_region_1(sc->registers_resource, 0xfc, sc->buf, 1);
-	//bus_barrier(sc->registers_resource, 0xfc, packlen(fmt),
-	//	BUS_SPACE_BARRIER_READ|BUS_SPACE_BARRIER_WRITE);
 	bus_read_region_1(sc->registers_resource, 0xfc, sc->buf, packlen(fmt));
 	unpack(sc->buf, fmt,
 		&tens_micro,     &units_micro,
@@ -576,6 +574,129 @@ tsg_get_clock_time(struct tsg_softc *sc, caddr_t arg)
 		argp->nsec += hundreds_nano * 100;
 	return 0;
 }
+
+// Return true if t holds a valid time for the current reference source.
+// Only verify the year for GPS and timecode sources, but verify the
+// whole time for the rest of the sources.
+static int
+is_valid_time(unsigned ref, struct tsg_time *t)
+{
+	if (t->year < 1969 || t->year > 2038)	// arbitrary
+		return 0;
+	if (ref == TSG_CLOCK_REF_GPS || ref == TSG_CLOCK_REF_TIMECODE)
+		return 1;
+	if (t->day < 1 || t->day > 366)
+		return 0;
+	if (t->hour < 0 || t->hour > 23)
+		return 0;
+	if (t->min < 0 || t->min > 59)
+		return 0;
+	if (t->sec < 0 || t->sec > 60)
+		return 0;
+	if (t->nsec < 0 || t->nsec > 999999999)
+		return 0;
+	return 1;
+}
+
+static int
+tsg_set_clock_time(struct tsg_softc *sc, caddr_t arg)
+{
+	struct tsg_time t = *(struct tsg_time *)arg;
+	uint8_t ref;
+	uint16_t milli;
+	uint8_t thousands_year, hundreds_year, tens_year, units_year;
+	uint8_t hundreds_day, tens_day, units_day;
+	uint8_t tens_hour, units_hour;
+	uint8_t tens_min, units_min;
+	uint8_t tens_sec, units_sec;
+	uint8_t hundreds_milli, tens_milli, units_milli;
+	char *fmt;
+	uint8_t control;
+
+	lock(sc);
+
+	// get current clock reference so we know which parts of the time to set
+	bus_read_region_1(sc->registers_resource, REG_CONFIG, &ref, 1);
+	ref &= TSG_CLOCK_REF_MASK;
+
+	if (!is_valid_time(ref, &t)) {
+		unlock(sc);
+		return EINVAL;
+	}
+
+	switch (ref) {
+	case TSG_CLOCK_REF_GEN:
+		milli = t.nsec / 1000000;
+		if (sc->new_model && milli != 0) {
+			// new models use the msec fields as a countdown to the second
+			// so calculate how many milliseconds to go,
+			milli = 1000 - milli;
+		}
+		ushort2bcd(milli, NULL, NULL, &hundreds_milli, &tens_milli, &units_milli);
+		fmt = "nn";
+		pack(sc->buf, fmt, units_milli, 0, hundreds_milli, tens_milli);
+		bus_write_region_1(sc->registers_resource, 0x159, sc->buf, packlen(fmt));
+		// fallthrough
+
+	case TSG_CLOCK_REF_1PPS:
+		ushort2bcd(t.sec, NULL, NULL, NULL, &tens_sec, &units_sec);
+		fmt = "n";
+		pack(sc->buf, fmt, tens_sec, units_sec);
+		bus_write_region_1(sc->registers_resource, 0x15b, sc->buf, packlen(fmt));
+
+		ushort2bcd(t.min, NULL, NULL, NULL, &tens_min, &units_min);
+		pack(sc->buf, fmt, tens_min, units_min);
+		bus_write_region_1(sc->registers_resource, 0x15c, sc->buf, packlen(fmt));
+
+		ushort2bcd(t.hour, NULL, NULL, NULL, &tens_hour, &units_hour);
+		pack(sc->buf, fmt, tens_hour, units_hour);
+		bus_write_region_1(sc->registers_resource, 0x15d, sc->buf, packlen(fmt));
+
+		ushort2bcd(t.day, NULL, NULL, &hundreds_day, &tens_day, &units_day);
+		fmt = "nn";
+		pack(sc->buf, fmt, tens_day, units_day, 0, hundreds_day);
+		bus_write_region_1(sc->registers_resource, 0x15e, sc->buf, packlen(fmt));
+		// fallthrough
+
+	case TSG_CLOCK_REF_GPS:
+	case TSG_CLOCK_REF_TIMECODE:
+		ushort2bcd(t.year, NULL, &thousands_year, &hundreds_year, &tens_year, &units_year);
+		fmt = "nn";
+		pack(sc->buf, fmt, tens_year, units_year, thousands_year, hundreds_year);
+		bus_write_region_1(sc->registers_resource, 0x160, sc->buf, packlen(fmt));
+		break;
+
+	default:
+		unlock(sc);
+		return EIO;	// problem; we don't expect any other values
+		break;
+	}
+
+	bus_read_region_1(sc->registers_resource, REG_CONFIG, &control, 1);
+	control &= ~TSG_PRESET_POS_READY;	// always clear; we're not setting pos here
+	control |= TSG_PRESET_TIME_READY;
+	bus_write_region_1(sc->registers_resource, REG_CONFIG, &control, 1);
+
+	// Wait for up to a second for TIME_READY to clear/
+	// I've seen it take between 19mS and 190mS, so poll every 10mS.
+	struct timeval tv = {
+		.tv_sec = 0,
+		.tv_usec = 10 * 1000,	// 10mS
+	};
+	int timo = tvtohz(&tv);
+
+	// wait for TIME_READY to clear
+	int tries;
+	for (tries = 0; tries < 100; ++tries) {
+		bus_read_region_1(sc->registers_resource, REG_CONFIG, &control, 1);
+		if ((control & TSG_PRESET_TIME_READY) == 0)
+			break;
+		pause("timrdy", timo);
+	}
+	unlock(sc);
+	return tries >= 100 ? ETIMEDOUT : 0;
+}
+
 
 static int
 tsg_get_gps_position(struct tsg_softc *sc, caddr_t arg)
@@ -1117,6 +1238,7 @@ tsg_ioctl(struct cdev *dev, u_long cmd, caddr_t arg, int fflag, struct thread *t
 		{ TSG_GET_CLOCK_REF,		tsg_get_clock_ref },
 		{ TSG_SET_CLOCK_REF,		tsg_set_clock_ref },
 		{ TSG_GET_CLOCK_TIME,		tsg_get_clock_time },
+		{ TSG_SET_CLOCK_TIME,		tsg_set_clock_time },
 		{ TSG_GET_GPS_POSITION,		tsg_get_gps_position },
 		{ TSG_GET_GPS_SIGNAL,		tsg_get_gps_signal },
 		{ TSG_GET_TIMECODE_AGC_DELAYS,	tsg_get_timecode_agc_delays },

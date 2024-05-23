@@ -93,6 +93,12 @@ tsg_get_clock_time(int fd, struct tsg_time *p)
 }
 
 int
+tsg_set_clock_time(int fd, struct tsg_time *p)
+{
+	return ioctl(fd, TSG_SET_CLOCK_TIME, p);
+}
+
+int
 tsg_get_gps_position(int fd, struct tsg_position *p)
 {
 	return ioctl(fd, TSG_GET_GPS_POSITION, p);

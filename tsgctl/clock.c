@@ -1,5 +1,7 @@
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
+#include <sys/time.h>
 #include "gettok.h"
 #include "node.h"
 #include "map.h"
@@ -13,7 +15,7 @@ get_time(int fd)
 	if (tsg_get_clock_time(fd, &t) != 0)
 		return -1;
 	printf(
-		"time: %d-%d %02d:%02d:%02d.%09ld\n",
+		"time: %d-%d-%02d:%02d:%02d.%09ld\n",
 		t.year,
 		t.day,
 		t.hour,
@@ -24,17 +26,128 @@ get_time(int fd)
 	return 0;
 }
 
+/* get system time if s is "system"; returns -1 if any problem */
+static int
+parse_system_time(char *s, struct tsg_time *t)
+{
+	struct timeval tv;
+	struct tm *tm;
+
+	if (strcasecmp(s, "system") != 0)
+		return -1;
+	if (gettimeofday(&tv, NULL) == -1)
+		return -1;
+	tm = gmtime(&tv.tv_sec);
+	t->year = tm->tm_year + 1900;
+	t->day = tm->tm_yday + 1;
+	t->hour = tm->tm_hour;
+	t->min = tm->tm_min;
+	t->sec = tm->tm_sec;
+	t->nsec = tv.tv_usec * 1000;
+
+	return 0;
+}
+
+/* parse time string that includes msec; returns -1 if wrong number of fields */
+static int
+parse_msec_time(char *s, struct tsg_time *t)
+{
+	int fields;
+	unsigned year, doy, hour, min, sec, msec;
+
+	fields = sscanf(
+		s,
+		"%u-%u-%u:%u:%u.%u",
+		&year, &doy, &hour, &min, &sec, &msec
+	);
+	if (fields != 6)
+		return -1;
+
+	t->year = year;
+	t->day = doy;
+	t->hour = hour;
+	t->min = min;
+	t->sec = sec;
+	t->nsec = msec * 1000000;
+
+	return 0;
+}
+
+/* parse time string that only goes to seconds; returns -1 if wrong number of fields */
+static int
+parse_sec_time(char *s, struct tsg_time *t)
+{
+	int fields;
+	unsigned year, doy, hour, min, sec;
+
+	fields = sscanf(
+		s,
+		"%u-%u-%u:%u:%u",
+		&year, &doy, &hour, &min, &sec
+	);
+	if (fields != 5)
+		return -1;
+
+	t->year = year;
+	t->day = doy;
+	t->hour = hour;
+	t->min = min;
+	t->sec = sec;
+	t->nsec = 0;
+
+	return 0;
+}
+
+/* parse time string that only has year; returns -1 if wrong number of fields */
+static int
+parse_year_time(char *s, struct tsg_time *t)
+{
+	unsigned year;
+
+	if (sscanf(s, "%u", &year) != 1)
+		return -1;
+
+	t->year = year;
+	t->day = 0;
+	t->hour = 0;
+	t->min = 0;
+	t->sec = 0;
+	t->nsec = 0;
+
+	return 0;
+}
+
+static int
+parse_time(char *s, struct tsg_time *t)
+{
+	if (parse_system_time(s, t) == 0)
+		return 0;
+	if (parse_msec_time(s, t) == 0)
+		return 0;
+	if (parse_sec_time(s, t) == 0)
+		return 0;
+	if (parse_year_time(s, t) == 0)
+		return 0;
+	return -1;
+}
+
 static int
 set_time(int fd)
 {
-	char *freq = gettok();
+	char *tok = gettok();
+	struct tsg_time t;
+	char *msg = "clock time should be \"system\", YYYY, or YYYY-DDD-HH:MM:SS[.mmm]\n";
 
-	printf("in set clock time\n");
-	if (freq == NULL) {
-		printf("expected time\n");
+	if (tok == NULL) {
+		puts(msg);
 		return -2;
 	}
-	return 0;
+	if (parse_time(tok, &t) == -1) {
+		puts(msg);
+		return -2;
+	}
+
+	return tsg_set_clock_time(fd, &t);
 }
 
 static int
