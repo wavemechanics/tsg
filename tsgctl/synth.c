@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include "gettok.h"
 #include "node.h"
+#include "map.h"
 #include "tsglib.h"
 #include "synth.h"
 
@@ -46,21 +47,36 @@ load_synth_freq(int fd)
 static int
 get_synth_edge(int fd)
 {
-	printf("in get synth edge\n");
+	uint8_t edge;
+
+	if (tsg_get_synth_edge(fd, &edge) == -1)
+		return -1;
+	printf("synth edge: %s\n", edge ? "rising" : "falling");
 	return 0;
 }
 
 static int
 set_synth_edge(int fd)
 {
-	char *edge = gettok();
+	static struct map edge_map[] = {
+		{ TSG_SYNTH_EDGE_RISING,	"rising" },
+		{ 0,				"falling" },
+		{ 0,				NULL }
+	};
+	char *tok = gettok();
+	uint8_t edge;
 
-	if (edge == NULL) {
-		printf("expected rising or falling\n");
+	if (tok == NULL) {
+		printmap(stdout, edge_map, 0);
 		return -2;
 	}
-	printf("would set synth edge to %s\n", edge);
-	return 0;
+	edge = mapbydesc(edge_map, tok, 0xff);
+	if (edge == 0xff) {
+		printmap(stdout, edge_map, 0);
+		return -2;
+	}
+
+	return tsg_set_synth_edge(fd, &edge);
 }
 
 static int

@@ -182,4 +182,10 @@ struct tsg_timecode_quality {
 #define	TSG_GET_SYNTH_FREQ		_IOR('T', 180, uint32_t)
 #define	TSG_SET_SYNTH_FREQ		_IOW('T', 181, uint32_t)
 
+#define	TSG_SYNTH_EDGE_RISING	0x04
+#define	TSG_SYNTH_EDGE_FALLING	0x00
+
+#define	TSG_GET_SYNTH_EDGE		_IOR('T', 190, uint8_t)
+#define	TSG_SET_SYNTH_EDGE		_IOW('T', 191, uint8_t)
+
 #endif

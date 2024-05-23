@@ -49,9 +49,7 @@ set_pulse_freq(int fd)
 		return -2;
 	}
 
-	if (tsg_set_pulse_freq(fd, &freq) != 0)
-		return -1;
-	return 0;
+	return tsg_set_pulse_freq(fd, &freq);
 }
 
 int

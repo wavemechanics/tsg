@@ -217,3 +217,15 @@ tsg_set_synth_freq(int fd, uint32_t *p)
 {
 	return ioctl(fd, TSG_SET_SYNTH_FREQ, p);
 }
+
+int
+tsg_get_synth_edge(int fd, uint8_t *p)
+{
+	return ioctl(fd, TSG_GET_SYNTH_EDGE, p);
+}
+
+int
+tsg_set_synth_edge(int fd, uint8_t *p)
+{
+	return ioctl(fd, TSG_SET_SYNTH_EDGE, p);
+}
