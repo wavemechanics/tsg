@@ -45,5 +45,7 @@ int tsg_get_synth_freq(int fd, uint32_t *p);
 int tsg_set_synth_freq(int fd, uint32_t *p);
 int tsg_get_synth_edge(int fd, uint8_t *p);
 int tsg_set_synth_edge(int fd, uint8_t *p);
+int tsg_get_synth_enable(int fd, uint8_t *p);
+int tsg_set_synth_enable(int fd, uint8_t *p);
 
 #endif

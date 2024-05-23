@@ -82,21 +82,28 @@ set_synth_edge(int fd)
 static int
 get_synth_enable(int fd)
 {
-	printf("in get synth enable\n");
+	uint8_t enable;
+
+	if (tsg_get_synth_enable(fd, &enable) == -1)
+		return -1;
+	printf("synth enable: %s\n", enable ? "yes" : "no");
 	return 0;
 }
 
 static int
 set_synth_enable(int fd)
 {
-	char *enable = gettok();
+	char *tok = gettok();
+	int val;
+	uint8_t enable;
 
-	if (enable == NULL) {
-		printf("expected yes nor no\n");
+	if ((val = truthy(tok)) == -1) {
+		printf("enable argument must be yes or no\n");
 		return -2;
 	}
-	printf("would set enable to %s\n", enable);
-	return 0;
+	enable = val ? TSG_SYNTH_ENABLE : 0;
+
+	return tsg_set_synth_enable(fd, &enable);
 }
 
 int

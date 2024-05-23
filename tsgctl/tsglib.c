@@ -229,3 +229,15 @@ tsg_set_synth_edge(int fd, uint8_t *p)
 {
 	return ioctl(fd, TSG_SET_SYNTH_EDGE, p);
 }
+
+int
+tsg_get_synth_enable(int fd, uint8_t *p)
+{
+	return ioctl(fd, TSG_GET_SYNTH_ENABLE, p);
+}
+
+int
+tsg_set_synth_enable(int fd, uint8_t *p)
+{
+	return ioctl(fd, TSG_SET_SYNTH_ENABLE, p);
+}

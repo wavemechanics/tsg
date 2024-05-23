@@ -1292,6 +1292,39 @@ tsg_set_synth_edge(struct tsg_softc *sc, caddr_t arg)
 }
 
 static int
+tsg_get_synth_enable(struct tsg_softc *sc, caddr_t arg)
+{
+	uint8_t *argp = (uint8_t *)arg;
+
+	if (!sc->new_model)
+		return EOPNOTSUPP;
+
+	lock(sc);
+	bus_read_region_1(sc->registers_resource, REG_SYNTH_CONTROL, argp, 1);
+	unlock(sc);
+	*argp &= TSG_SYNTH_ENABLE;
+	return 0;
+}
+
+static int
+tsg_set_synth_enable(struct tsg_softc *sc, caddr_t arg)
+{
+	uint8_t *argp = (uint8_t *)arg;
+	uint8_t buf;
+
+	if (!sc->new_model)
+		return EOPNOTSUPP;
+
+	lock(sc);
+	bus_read_region_1(sc->registers_resource, REG_SYNTH_CONTROL, &buf, 1);
+	buf &= ~TSG_SYNTH_ENABLE;
+	buf |= *argp;
+	bus_write_region_1(sc->registers_resource, REG_SYNTH_CONTROL, &buf, 1);
+	unlock(sc);
+	return 0;
+}
+
+static int
 tsg_ioctl(struct cdev *dev, u_long cmd, caddr_t arg, int fflag, struct thread *td)
 {
 	struct tsg_softc *sc = dev->si_drv1;
@@ -1339,6 +1372,8 @@ tsg_ioctl(struct cdev *dev, u_long cmd, caddr_t arg, int fflag, struct thread *t
 		{ TSG_SET_SYNTH_FREQ,		tsg_set_synth_freq },
 		{ TSG_GET_SYNTH_EDGE,		tsg_get_synth_edge },
 		{ TSG_SET_SYNTH_EDGE,		tsg_set_synth_edge },
+		{ TSG_GET_SYNTH_ENABLE,		tsg_get_synth_enable },
+		{ TSG_SET_SYNTH_ENABLE,		tsg_set_synth_enable },
 		{ 0,				NULL },
 	};
 
