@@ -364,6 +364,45 @@ tsg_set_board_j1(struct tsg_softc *sc, caddr_t arg)
 }
 
 static int
+tsg_get_board_pin6(struct tsg_softc *sc, caddr_t arg)
+{
+	uint8_t *argp = (uint8_t *)arg;
+
+	// pin6 on old boards is always comparator output
+	if (!sc->new_model) {
+		*argp = 0;
+		return 0;
+	}
+
+	lock(sc);
+	bus_read_region_1(sc->registers_resource, REG_SYNTH_CONTROL, argp, 1);
+	unlock(sc);
+	*argp &= TSG_BOARD_PIN6_SYNTH;
+	return 0;
+}
+
+static int
+tsg_set_board_pin6(struct tsg_softc *sc, caddr_t arg)
+{
+	uint8_t *argp = (uint8_t *)arg;
+	uint8_t buf;
+
+	// Cannot change pin6 on old boards; it is always comparator output.
+	if (!sc->new_model)
+		return *argp == 0 ? 0 : EINVAL;
+	if (*argp != 0 && *argp != TSG_BOARD_PIN6_SYNTH)
+		return EINVAL;
+
+	lock(sc);
+	bus_read_region_1(sc->registers_resource, REG_SYNTH_CONTROL, &buf, 1);
+	buf &= ~(TSG_SYNTH_LOAD | TSG_BOARD_PIN6_SYNTH);
+	buf |= *argp;
+	bus_write_region_1(sc->registers_resource, REG_SYNTH_CONTROL, &buf, 1);
+	unlock(sc);
+	return 0;
+}
+
+static int
 tsg_get_pulse_freq(struct tsg_softc *sc, caddr_t arg)
 {
 	uint8_t *argp = (uint8_t *)arg;
@@ -1452,6 +1491,8 @@ tsg_ioctl(struct cdev *dev, u_long cmd, caddr_t arg, int fflag, struct thread *t
 		{ TSG_GET_BOARD_TEST_STATUS,	tsg_get_board_test_status },
 		{ TSG_GET_BOARD_J1,		tsg_get_board_j1 },
 		{ TSG_SET_BOARD_J1,		tsg_set_board_j1 },
+		{ TSG_GET_BOARD_PIN6,		tsg_get_board_pin6 },
+		{ TSG_SET_BOARD_PIN6,		tsg_set_board_pin6 },
 		{ TSG_GET_PULSE_FREQ,		tsg_get_pulse_freq },
 		{ TSG_SET_PULSE_FREQ,		tsg_set_pulse_freq },
 		{ TSG_GET_GPS_ANTENNA_STATUS,	tsg_get_gps_antenna_status },

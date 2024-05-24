@@ -29,24 +29,42 @@ get_firmware(int fd)
 	return 0;
 }
 
+static struct map pin6_map[] = {
+	{ 0,			"comparator" },
+	{ TSG_BOARD_PIN6_SYNTH,	"synth" },
+	{ 0,			NULL }
+};
+
 static int
 get_pin6(int fd)
 {
-	printf("in get pin6\n");
+	uint8_t pin6;
+	char *s;
+
+	if (tsg_get_board_pin6(fd, &pin6) == -1)
+		return -1;
+	s = mapbyval(pin6_map, pin6, "unknown");
+	printf("pin6: %s\n", s);
 	return 0;
 }
 
 static int
 set_pin6(int fd)
 {
-	char *pin6 = gettok();
+	char *s = gettok();
+	uint8_t pin6;
 
-	printf("in set pin6\n");
-	if (pin6 == NULL) {
-		printf("expected pin6\n");
+	if (s == NULL) {
+		printmap(stdout, pin6_map, 0);
 		return -2;
 	}
-	return 0;
+	pin6 = mapbydesc(pin6_map, s, 0xff);
+	if (pin6 == 0xff) {
+		printmap(stdout, pin6_map, 0);
+		return -2;
+	}
+
+	return tsg_set_board_pin6(fd, &pin6);
 }
 
 static struct map j1_map[] = {
@@ -89,9 +107,7 @@ set_j1(int fd)
 		return -2;
 	}
 
-	if (tsg_set_board_j1(fd, &j1) != 0)
-		return -1;
-	return 0;
+	return tsg_set_board_j1(fd, &j1);
 }
 
 static int

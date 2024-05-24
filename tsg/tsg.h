@@ -182,6 +182,7 @@ struct tsg_timecode_quality {
 #define	TSG_GET_SYNTH_FREQ		_IOR('T', 180, uint32_t)
 #define	TSG_SET_SYNTH_FREQ		_IOW('T', 181, uint32_t)
 
+#define	TSG_BOARD_PIN6_SYNTH	0x08	// pin6 output 0=time compare, 1=synth
 #define	TSG_SYNTH_EDGE_RISING	0x04
 #define	TSG_SYNTH_ENABLE	0x01
 
@@ -216,5 +217,8 @@ struct tsg_compare_time {
 
 #define	TSG_GET_COMPARE_TIME		_IOR('T', 210, struct tsg_compare_time)
 #define	TSG_SET_COMPARE_TIME		_IOW('T', 211, struct tsg_compare_time)
+
+#define	TSG_GET_BOARD_PIN6		_IOR('T', 220, uint8_t)
+#define	TSG_SET_BOARD_PIN6		_IOW('T', 221, uint8_t)
 
 #endif

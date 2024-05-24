@@ -39,6 +39,18 @@ tsg_set_board_j1(int fd, uint8_t *p)
 }
 
 int
+tsg_get_board_pin6(int fd, uint8_t *p)
+{
+	return ioctl(fd, TSG_GET_BOARD_PIN6, p);
+}
+
+int
+tsg_set_board_pin6(int fd, uint8_t *p)
+{
+	return ioctl(fd, TSG_SET_BOARD_PIN6, p);
+}
+
+int
 tsg_get_pulse_freq(int fd, uint8_t *p)
 {
 	return ioctl(fd, TSG_GET_PULSE_FREQ, p);

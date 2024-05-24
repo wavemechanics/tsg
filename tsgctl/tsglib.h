@@ -13,6 +13,8 @@ int tsg_get_board_firmware(int fd, struct tsg_board_firmware *p);
 int tsg_get_board_test_status(int fd, uint8_t *p);
 int tsg_get_board_j1(int fd, uint8_t *p);
 int tsg_set_board_j1(int fd, uint8_t *p);
+int tsg_get_board_pin6(int fd, uint8_t *p);
+int tsg_set_board_pin6(int fd, uint8_t *p);
 int tsg_get_pulse_freq(int fd, uint8_t *p);
 int tsg_set_pulse_freq(int fd, uint8_t *p);
 int tsg_get_gps_antenna_status(int fd, uint8_t *p);
