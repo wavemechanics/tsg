@@ -1,4 +1,4 @@
-OBJS=ctl.o gettok.o node.o action.o pulse.o synth.o clock.o gps.o timecode.o board.o event.o map.o tsglib.o
+OBJS=ctl.o gettok.o node.o action.o pulse.o synth.o clock.o gps.o timecode.o board.o event.o compare.o map.o tsglib.o
 
 CFLAGS+=-Wall -I../tsg
 tsgctl: $(OBJS)
@@ -12,7 +12,7 @@ gettok.o: gettok.h
 
 node.o: gettok.h node.h
 
-action.o: node.h pulse.h synth.h clock.h gps.h action.h timecode.h
+action.o: node.h pulse.h synth.h clock.h gps.h action.h timecode.h compare.h
 
 pulse.o: gettok.h node.h pulse.h tsglib.h map.h
 
@@ -27,6 +27,8 @@ timecode.o: gettok.h node.h timecode.h tsglib.h map.h
 board.o: gettok.h node.h board.h tsglib.h map.h
 
 event.o: gettok.h node.h event.h
+
+compare.o: gettok.h node.h tsglib.h compare.h
 
 map.o: map.h
 

@@ -241,3 +241,15 @@ tsg_set_synth_enable(int fd, uint8_t *p)
 {
 	return ioctl(fd, TSG_SET_SYNTH_ENABLE, p);
 }
+
+int
+tsg_get_compare_time(int fd, struct tsg_compare_time *p)
+{
+	return ioctl(fd, TSG_GET_COMPARE_TIME, p);
+}
+
+int
+tsg_set_compare_time(int fd, struct tsg_compare_time *p)
+{
+	return ioctl(fd, TSG_SET_COMPARE_TIME, p);
+}

@@ -7,6 +7,7 @@
 #include "timecode.h"
 #include "board.h"
 #include "event.h"
+#include "compare.h"
 #include "action.h"
 
 static int
@@ -20,6 +21,7 @@ get(int fd)
 		{ "timecode", "input timecode", get_timecode },
 		{ "board", "PCI board", get_board },
 		{ "event", "event timestamper", get_event },
+		{ "compare", "time comparator", get_compare },
 		{ NULL, NULL, NULL },
 	};
 
@@ -36,6 +38,7 @@ set(int fd)
 		{ "timecode", "input timecode", set_timecode },
 		{ "board", "PCI board", set_board },
 		{ "event", "event timestamper", set_event },
+		{ "compare", "time comparator", set_compare },
 		{ NULL, NULL, NULL },
 	};
 

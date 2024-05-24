@@ -49,6 +49,7 @@
 #define	REG_MISC_CONTROL	0x12c
 #define	REG_SYNTH_CONTROL	0x12d
 #define		TSG_SYNTH_LOAD	0x02
+#define	REG_TIME_COMPARE	0x138
 
 #define	UNUSED(x)	(x) __attribute__((unused))
 
@@ -1325,6 +1326,113 @@ tsg_set_synth_enable(struct tsg_softc *sc, caddr_t arg)
 }
 
 static int
+tsg_get_compare_time(struct tsg_softc *sc, caddr_t arg)
+{
+	struct tsg_compare_time *argp = (struct tsg_compare_time *)arg;
+	char *fmt = "nnnn nnnn";
+	uint8_t hundreds_day, tens_day, units_day;
+	uint8_t tens_hour, units_hour;
+	uint8_t tens_min, units_min;
+	uint8_t tens_sec, units_sec;
+	uint8_t hundreds_msec, tens_msec, units_msec;
+	uint8_t hundreds_usec, tens_usec, units_usec;
+	uint8_t mask;
+
+	lock(sc);
+	bus_read_region_1(sc->registers_resource, REG_TIME_COMPARE, sc->buf, packlen(fmt));
+	unpack(sc->buf, fmt,
+		&tens_usec,	&units_usec,
+		&units_msec,	&hundreds_usec,
+		&hundreds_msec,	&tens_msec,
+		&tens_sec,	&units_sec,
+		&tens_min,	&units_min,
+		&tens_hour,	&units_hour,
+		&tens_day,	&units_day,
+		&mask,		&hundreds_day
+	);
+	unlock(sc);
+
+	argp->day = hundreds_day * 100 + tens_day * 10 + units_day;
+	argp->hour = tens_hour * 10 + units_hour;
+	argp->min = tens_min * 10 + units_min;
+	argp->sec = tens_sec * 10 + units_sec;
+	argp->usec =
+		hundreds_msec * 100000 +
+		tens_msec *      10000 +
+		units_msec *      1000 +
+		hundreds_usec *    100 +
+		tens_usec *         10 +
+		units_usec;
+	argp->mask = mask;
+
+	return 0;
+}
+
+static int
+tsg_set_compare_time(struct tsg_softc *sc, caddr_t arg)
+{
+	struct tsg_compare_time *argp = (struct tsg_compare_time *)arg;
+	char *fmt = "nnnn nnnn";
+	uint8_t hundreds_day, tens_day, units_day;
+	uint8_t tens_hour, units_hour;
+	uint8_t tens_min, units_min;
+	uint8_t tens_sec, units_sec;
+	uint8_t hundreds_msec, tens_msec, units_msec;
+	uint8_t hundreds_usec, tens_usec, units_usec;
+
+	if (argp->day < 1 || argp->day > 366)
+		return EINVAL;
+	if (argp->hour > 23)
+		return EINVAL;
+	if (argp->min > 59)
+		return EINVAL;
+	if (argp->sec > 59)
+		return EINVAL;
+	if (argp->usec > 999999)
+		return EINVAL;
+	switch (argp->mask) {
+	case TSG_COMPARE_MASK_HDAY:
+	case TSG_COMPARE_MASK_TDAY:
+	case TSG_COMPARE_MASK_UDAY:
+	case TSG_COMPARE_MASK_THOUR:
+	case TSG_COMPARE_MASK_UHOUR:
+	case TSG_COMPARE_MASK_TMIN:
+	case TSG_COMPARE_MASK_UMIN:
+	case TSG_COMPARE_MASK_TSEC:
+	case TSG_COMPARE_MASK_USEC:
+	case TSG_COMPARE_MASK_HMSEC:
+	case TSG_COMPARE_MASK_TMSEC:
+	case TSG_COMPARE_MASK_UMSEC:
+		break;
+	default:
+		return EINVAL;
+	}
+
+	ushort2bcd(argp->day, NULL, NULL, &hundreds_day, &tens_day, &units_day);
+	ushort2bcd(argp->hour, NULL, NULL, NULL, &tens_hour, &units_hour);
+	ushort2bcd(argp->min, NULL, NULL, NULL, &tens_min, &units_min);
+	ushort2bcd(argp->sec, NULL, NULL, NULL, &tens_sec, &units_sec);
+	ushort2bcd(argp->usec / 1000, NULL, NULL, &hundreds_msec, &tens_msec, &units_msec);
+	ushort2bcd(argp->usec % 1000, NULL, NULL, &hundreds_usec, &tens_usec, &units_usec);
+
+	lock(sc);
+	pack(sc->buf, fmt,
+		tens_usec,	units_usec,
+		units_msec,	hundreds_usec,
+		hundreds_msec,	tens_msec,
+		tens_sec,	units_sec,
+		tens_min,	units_min,
+		tens_hour,	units_hour,
+		tens_day,	units_day,
+		argp->mask,	hundreds_day
+	);
+	bus_write_region_1(sc->registers_resource, REG_TIME_COMPARE, sc->buf, packlen(fmt));
+	unlock(sc);
+
+	return 0;
+}
+
+static int
 tsg_ioctl(struct cdev *dev, u_long cmd, caddr_t arg, int fflag, struct thread *td)
 {
 	struct tsg_softc *sc = dev->si_drv1;
@@ -1374,6 +1482,8 @@ tsg_ioctl(struct cdev *dev, u_long cmd, caddr_t arg, int fflag, struct thread *t
 		{ TSG_SET_SYNTH_EDGE,		tsg_set_synth_edge },
 		{ TSG_GET_SYNTH_ENABLE,		tsg_get_synth_enable },
 		{ TSG_SET_SYNTH_ENABLE,		tsg_set_synth_enable },
+		{ TSG_GET_COMPARE_TIME,		tsg_get_compare_time },
+		{ TSG_SET_COMPARE_TIME,		tsg_set_compare_time },
 		{ 0,				NULL },
 	};
 
