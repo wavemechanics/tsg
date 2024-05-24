@@ -1404,6 +1404,10 @@ tsg_set_compare_time(struct tsg_softc *sc, caddr_t arg)
 	case TSG_COMPARE_MASK_TMSEC:
 	case TSG_COMPARE_MASK_UMSEC:
 		break;
+	case TSG_COMPARE_MASK_DISABLE:
+		if (!sc->new_model)
+			return EINVAL;
+		break;
 	default:
 		return EINVAL;
 	}
