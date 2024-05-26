@@ -56,7 +56,8 @@
 
 struct tsg_softc {
 	device_t	device;
-	struct cdev	*cdev;
+	struct cdev	*cdev;		// main device
+	struct cdev	*cdev_ext;	// .ext device
 
 	struct mtx	mtx;
 
@@ -86,12 +87,24 @@ static d_open_t		tsg_open;
 static d_close_t	tsg_close;
 static d_ioctl_t	tsg_ioctl;
 
+static d_open_t		tsg_ext_open;
+static d_close_t	tsg_ext_close;
+static d_ioctl_t	tsg_ext_ioctl;
+
 static struct cdevsw tsg_cdevsw = {
 	.d_version =	D_VERSION,
 	.d_open =	tsg_open,
 	.d_close =	tsg_close,
 	.d_ioctl =	tsg_ioctl,
 	.d_name = 	"tsg"
+};
+
+static struct cdevsw tsg_cdevsw_ext = {
+	.d_version =	D_VERSION,
+	.d_open =	tsg_ext_open,
+	.d_close =	tsg_ext_close,
+	.d_ioctl =	tsg_ext_ioctl,
+	.d_name	= 	"tsg_ext"
 };
 
 static devclass_t tsg_devclass;
@@ -242,7 +255,16 @@ tsg_attach(device_t dev)
 	if (error != 0) {
 		sc->cdev = NULL;
 		release_resources(sc);
-		device_printf(dev, "cannot create device node\n");
+		device_printf(dev, "cannot create device node tsg%d\n", unit);
+		return ENXIO;
+	}
+
+	args.mda_devsw = &tsg_cdevsw_ext;
+	error = make_dev_s(&args, &sc->cdev_ext, "tsg%d.ext", unit);
+	if (error != 0) {
+		sc->cdev_ext = NULL;
+		release_resources(sc);
+		device_printf(dev, "cannot create device node tsg%d.ext", unit);
 		return ENXIO;
 	}
 
@@ -268,6 +290,8 @@ tsg_detach(device_t dev)
 {
 	struct tsg_softc *sc = device_get_softc(dev);
 
+	if (sc->cdev_ext)
+		destroy_dev(sc->cdev_ext);
 	if (sc->cdev)
 		destroy_dev(sc->cdev);
 	release_resources(sc);
@@ -283,10 +307,22 @@ tsg_open(struct cdev *dev, int oflags, int devtype, struct thread *td)
 }
 
 static int
+tsg_ext_open(struct cdev *dev, int oflags, int devtype, struct thread *td)
+{
+	return 0;
+}
+
+static int
 tsg_close(struct cdev *dev, int fflag, int devtype, struct thread *td)
 {
 	//struct tsg_softc *sc = dev->si_drv1;
 
+	return 0;
+}
+
+static int
+tsg_ext_close(struct cdev *dev, int fflag, int devtype, struct thread *td)
+{
 	return 0;
 }
 
@@ -1580,6 +1616,12 @@ tsg_ioctl(struct cdev *dev, u_long cmd, caddr_t arg, int fflag, struct thread *t
 	for (struct dispatcher *p = tab; p->fcn; ++p)
 		if (p->cmd == cmd)
 			return (*p->fcn)(sc, arg);
+	return EOPNOTSUPP;
+}
+
+static int
+tsg_ext_ioctl(struct cdev *dev, u_long cmd, caddr_t arg, int fflag, struct thread *td)
+{
 	return EOPNOTSUPP;
 }
 
