@@ -18,6 +18,7 @@
 #include <sys/bus.h>
 #include <machine/bus.h>
 #include <machine/stdarg.h>
+#include <machine/atomic.h>
 
 #include <sys/rman.h>
 
@@ -74,6 +75,11 @@ struct tsg_softc {
 	uint8_t		major;
 	uint8_t		minor;
 	uint8_t		test;
+
+	// intmask determines which events should generate interrupts.
+	// (TSG_INT_ENABLE_*)
+	// only access this field with atomic_(load|store)_int
+	unsigned 	intmask;
 };
 
 static d_open_t		tsg_open;
@@ -1476,6 +1482,29 @@ tsg_set_compare_time(struct tsg_softc *sc, caddr_t arg)
 }
 
 static int
+tsg_get_int_mask(struct tsg_softc *sc, caddr_t arg)
+{
+	uint8_t *argp = (uint8_t *)arg;
+
+	*argp = (uint8_t)atomic_load_int(&sc->intmask);
+	return 0;
+}
+
+static int
+tsg_set_int_mask(struct tsg_softc *sc, caddr_t arg)
+{
+	uint8_t *argp = (uint8_t *)arg;
+
+	if (*argp & ~TSG_INT_ENABLE_MASK)
+		return EINVAL;	// non-int bits are set
+	if (!sc->new_model && (*argp & TSG_INT_ENABLE_SYNTH))
+		return ENODEV;	// old boards don't support synth interrupts
+
+	atomic_store_int(&sc->intmask, *argp);
+	return 0;
+}
+
+static int
 tsg_ioctl(struct cdev *dev, u_long cmd, caddr_t arg, int fflag, struct thread *td)
 {
 	struct tsg_softc *sc = dev->si_drv1;
@@ -1529,6 +1558,8 @@ tsg_ioctl(struct cdev *dev, u_long cmd, caddr_t arg, int fflag, struct thread *t
 		{ TSG_SET_SYNTH_ENABLE,		tsg_set_synth_enable },
 		{ TSG_GET_COMPARE_TIME,		tsg_get_compare_time },
 		{ TSG_SET_COMPARE_TIME,		tsg_set_compare_time },
+		{ TSG_GET_INT_MASK,		tsg_get_int_mask },
+		{ TSG_SET_INT_MASK,		tsg_set_int_mask },
 		{ 0,				NULL },
 	};
 

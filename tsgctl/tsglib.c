@@ -265,3 +265,15 @@ tsg_set_compare_time(int fd, struct tsg_compare_time *p)
 {
 	return ioctl(fd, TSG_SET_COMPARE_TIME, p);
 }
+
+int
+tsg_get_int_mask(int fd, uint8_t *p)
+{
+	return ioctl(fd, TSG_GET_INT_MASK, p);
+}
+
+int
+tsg_set_int_mask(int fd, uint8_t *p)
+{
+	return ioctl(fd, TSG_SET_INT_MASK, p);
+}

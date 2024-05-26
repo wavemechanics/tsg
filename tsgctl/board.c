@@ -146,6 +146,66 @@ save_board(int fd)
 }
 
 int
+get_int_mask(int fd)
+{
+	uint8_t mask;
+
+	if (tsg_get_int_mask(fd, &mask) == -1)
+		return -1;
+	printf("int-mask: ");
+	if (mask == 0)
+		putchar('-');
+	if (mask & TSG_INT_ENABLE_COMPARE)
+		putchar('c');
+	if (mask & TSG_INT_ENABLE_EXT)
+		putchar('e');
+	if (mask & TSG_INT_ENABLE_PULSE)
+		putchar('p');
+	if (mask & TSG_INT_ENABLE_SYNTH)
+		putchar('s');
+	putchar('\n');
+	return 0;
+}
+
+int
+set_int_mask(int fd)
+{
+	char *tok = gettok();
+	uint8_t mask;
+	char *msg = "\"-\" or any combination of c, e, p, s (eg \"ep\")\n";
+
+	if (tok == NULL) {
+		puts(msg);
+		return -2;
+	}
+	if (strcmp(tok, "-") == 0)
+		mask = 0;
+	else {
+		mask = 0;
+		for (char *cp = tok; *cp; ++cp) {
+			switch (*cp) {
+			case 'c':
+				mask |= TSG_INT_ENABLE_COMPARE;
+				break;
+			case 'e':
+				mask |= TSG_INT_ENABLE_EXT;
+				break;
+			case 'p':
+				mask |= TSG_INT_ENABLE_PULSE;
+				break;
+			case 's':
+				mask |= TSG_INT_ENABLE_SYNTH;
+				break;
+			default:
+				puts(msg);
+				return -2;
+			}
+		}
+	}
+	return tsg_set_int_mask(fd, &mask);
+}
+
+int
 get_board(int fd)
 {
 	static struct node params[] = {
@@ -154,6 +214,7 @@ get_board(int fd)
 		{ "pin6", "pin6 output signal", get_pin6 },
 		{ "j1", "J1 output signal", get_j1 },
 		{ "self-test", "self test results", get_self_test },
+		{ "int-mask", "interrupt mask ", get_int_mask },
 		{ NULL, NULL, NULL },
 	};
 
@@ -166,6 +227,7 @@ set_board(int fd)
 	static struct node params[] = {
 		{ "pin6", "pin6 output signal", set_pin6 },
 		{ "j1", "J1 output signal", set_j1 },
+		{ "int-mask", "interrupt mask", set_int_mask },
 		{ NULL, NULL, NULL },
 	};
 
