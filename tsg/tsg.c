@@ -189,7 +189,6 @@ static int
 tsg_attach(device_t dev)
 {
 	struct tsg_softc *sc = device_get_softc(dev);
-	int unit;
 
 	sc->device = dev;
 	sc->lcr_resource = NULL;
@@ -229,9 +228,23 @@ tsg_attach(device_t dev)
 	sc->new_model = sc->model == TSG_MODEL_PCI_SG_2U || sc->model == TSG_MODEL_GPS_PCI_2U;
 	sc->has_gps = sc->model == TSG_MODEL_GPS_PCI || sc->model == TSG_MODEL_GPS_PCI_2U;
 
-	unit = device_get_unit(dev);
-	sc->cdev = make_dev(&tsg_cdevsw, unit, UID_ROOT, GID_WHEEL, 0600, "tsg%d", unit);
-	sc->cdev->si_drv1 = sc;
+	int unit = device_get_unit(dev);
+	struct make_dev_args args;
+
+	make_dev_args_init(&args);
+	args.mda_devsw = &tsg_cdevsw;
+	args.mda_uid = UID_ROOT;
+	args.mda_gid = GID_WHEEL;
+	args.mda_mode = 0600;
+	args.mda_unit = unit;
+	args.mda_si_drv1 = sc;
+	int error = make_dev_s(&args, &sc->cdev, "tsg%d", unit);
+	if (error != 0) {
+		sc->cdev = NULL;
+		release_resources(sc);
+		device_printf(dev, "cannot create device node\n");
+		return ENXIO;
+	}
 
 	/* Only the new board support the firmware registers.
 	 * 0x1bc c major
@@ -255,7 +268,8 @@ tsg_detach(device_t dev)
 {
 	struct tsg_softc *sc = device_get_softc(dev);
 
-	destroy_dev(sc->cdev);
+	if (sc->cdev)
+		destroy_dev(sc->cdev);
 	release_resources(sc);
 	return 0;
 }
