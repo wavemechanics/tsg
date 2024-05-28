@@ -2,15 +2,27 @@ FreeBSD driver and control program for TrueTime/Symmetricom 560-5900 series card
 
 WORK IN PROGRESS
 
-Several board parameters can be get and set using `ioctl`s and via the `tsgctl` cli.
-There is enough so far to configure GPS syncing, sending and receiving timecodes, and
-configuring the pulse generator.
+These cards have an onboard clock that can free-run, or can be synchronised to
+an external 1PPS signal or IRIG A/B timecode.
+Some cards can be synced to an onboard GPS receiver.
+
+The card can generate 1PPS, IRIG timecode, decade pulses, and arbitrary frequences.
+It can also be configured to do things when the onboard clock time matches a given
+pattern.
+
+Certain events can generate PCI interrupts.
+This driver handles these interrupts using the RFC 2783 Pulse Per Second API.
+You can use this API to capture timestamps on external events, or to pass 1PPS
+signals to NTP.
+
+This driver supports most board parameters using `ioctl`s or the `tsgctl` cli.
 
 Next steps:
 
-* finish board control ioctls and commands
-* enable interrupt handling and integrate with PPS API
-* maybe implement read to generate an NMEA stream
+* finish the last few board control ioctls and commands
+* further testing, and polish up the code
+* write docs and examples
+* maybe implement `read` to generate an NMEA stream
 
 ## How to build and load
 

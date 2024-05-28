@@ -231,13 +231,4 @@ struct tsg_compare_time {
 #define	TSG_GET_INT_MASK		_IOR('T', 230, uint8_t)
 #define	TSG_SET_INT_MASK		_IOW('T', 231, uint8_t)
 
-struct tsg_counts {
-	uint32_t c_count;
-	uint32_t e_count;
-	uint32_t p_count;
-	uint32_t s_count;
-};
-
-#define	TSG_GET_BOARD_COUNTS		_IOR('T', 240, struct tsg_counts)
-
 #endif

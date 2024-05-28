@@ -24,6 +24,8 @@
 #include <dev/pci/pcireg.h>
 #include <dev/pci/pcivar.h>
 
+#include <sys/timepps.h>
+
 #include "tsg.h"
 
 /* PCI identification */
@@ -69,8 +71,12 @@
 
 struct tsg_softc {
 	device_t	device;
+
 	struct cdev	*cdev;		// main device
+	struct cdev	*cdev_compare;	// .compare device
 	struct cdev	*cdev_ext;	// .ext device
+	struct cdev	*cdev_pulse;	// .pulse device
+	struct cdev	*cdev_synth;	// .synth device
 
 	struct mtx	mtx;
 
@@ -98,19 +104,39 @@ struct tsg_softc {
 	// (TSG_INT_ENABLE_*)
 	uint8_t 	intmask;
 
-	uint32_t	c_count;
-	uint32_t	e_count;
-	uint32_t	p_count;	// temporary to test intr handling
-	uint32_t	s_count;
+	// We manage four PPS API interfaces
+	struct pps_state	pps_state_compare;
+	struct mtx		pps_mtx_compare;
+
+	struct pps_state	pps_state_ext;
+	struct mtx		pps_mtx_ext;
+
+	struct pps_state	pps_state_pulse;
+	struct mtx		pps_mtx_pulse;
+
+	struct pps_state	pps_state_synth;
+	struct mtx		pps_mtx_synth;
 };
 
 static d_open_t		tsg_open;
 static d_close_t	tsg_close;
 static d_ioctl_t	tsg_ioctl;
 
+static d_open_t		tsg_compare_open;
+static d_close_t	tsg_compare_close;
+static d_ioctl_t	tsg_compare_ioctl;
+
 static d_open_t		tsg_ext_open;
 static d_close_t	tsg_ext_close;
 static d_ioctl_t	tsg_ext_ioctl;
+
+static d_open_t		tsg_pulse_open;
+static d_close_t	tsg_pulse_close;
+static d_ioctl_t	tsg_pulse_ioctl;
+
+static d_open_t		tsg_synth_open;
+static d_close_t	tsg_synth_close;
+static d_ioctl_t	tsg_synth_ioctl;
 
 static struct cdevsw tsg_cdevsw = {
 	.d_version =	D_VERSION,
@@ -120,12 +146,36 @@ static struct cdevsw tsg_cdevsw = {
 	.d_name = 	"tsg"
 };
 
+static struct cdevsw tsg_cdevsw_compare = {
+	.d_version =	D_VERSION,
+	.d_open =	tsg_compare_open,
+	.d_close =	tsg_compare_close,
+	.d_ioctl =	tsg_compare_ioctl,
+	.d_name =	"tsg_compare"
+};
+
 static struct cdevsw tsg_cdevsw_ext = {
 	.d_version =	D_VERSION,
 	.d_open =	tsg_ext_open,
 	.d_close =	tsg_ext_close,
 	.d_ioctl =	tsg_ext_ioctl,
 	.d_name	= 	"tsg_ext"
+};
+
+static struct cdevsw tsg_cdevsw_pulse = {
+	.d_version =	D_VERSION,
+	.d_open =	tsg_pulse_open,
+	.d_close =	tsg_pulse_close,
+	.d_ioctl =	tsg_pulse_ioctl,
+	.d_name =	"tsg_pulse"
+};
+
+static struct cdevsw tsg_cdevsw_synth = {
+	.d_version =	D_VERSION,
+	.d_open =	tsg_synth_open,
+	.d_close =	tsg_synth_close,
+	.d_ioctl =	tsg_synth_ioctl,
+	.d_name =	"tsg_synth"
 };
 
 static devclass_t tsg_devclass;
@@ -201,6 +251,15 @@ tsg_modevent(module_t mod __unused, int event, void *arg __unused)
 }
 
 static void
+timestamp(struct pps_state *state, struct mtx *mtx)
+{
+	mtx_lock(mtx);
+	pps_capture(state);
+	pps_event(state, PPS_CAPTUREASSERT);
+	mtx_unlock(mtx);
+}
+
+static void
 tsg_ithrd(void *arg)
 {
 	struct tsg_softc *sc = arg;
@@ -218,21 +277,19 @@ tsg_ithrd(void *arg)
 
 	// capture PPS events when we are interested in them AND they have occurred
 	if ((intmask & TSG_INT_ENABLE_EXT) && (intstat & TSG_INTR_EXT)) {
-		++sc->e_count;
+		timestamp(&sc->pps_state_ext, &sc->pps_mtx_ext);
 		clearmask |= TSG_CLEAR_EXT;
 	}
 	if ((intmask & TSG_INT_ENABLE_PULSE) && (intstat & TSG_INTR_PULSE)) {
-		//pps_capture(sc->pps_state_ext);
-		//pps_event(sc->pps_state_ext, PPS_CAPTURE_ASSERT);
-		++sc->p_count;
+		timestamp(&sc->pps_state_pulse, &sc->pps_mtx_pulse);
 		clearmask |= TSG_CLEAR_PULSE;
 	}
 	if ((intmask & TSG_INT_ENABLE_COMPARE) && (intstat & TSG_INTR_COMPARE)) {
-		++sc->c_count;
+		timestamp(&sc->pps_state_compare, &sc->pps_mtx_compare);
 		clearmask |= TSG_CLEAR_COMPARE;
 	}
 	if ((intmask & TSG_INT_ENABLE_SYNTH) && (intstat & TSG_INTR_SYNTH)) {
-		++sc->s_count;
+		timestamp(&sc->pps_state_synth, &sc->pps_mtx_synth);
 		clearmask |= TSG_CLEAR_SYNTH;
 	}
 
@@ -250,7 +307,6 @@ release_resources(struct tsg_softc *sc)
 	tsg_intcsr(sc, 0);
 
 	if (sc->cookiep != NULL) {
-		uprintf("tearing down interrupt handler\n");
 		bus_teardown_intr(
 			sc->device,
 			sc->intr_resource,
@@ -259,7 +315,6 @@ release_resources(struct tsg_softc *sc)
 		sc->cookiep = NULL;
 	}
 	if (sc->intr_resource) {
-		uprintf("releasing interrupt resource\n");
 		bus_release_resource(
 			sc->device,
 			SYS_RES_IRQ,
@@ -288,7 +343,20 @@ release_resources(struct tsg_softc *sc)
 		sc->registers_resource = NULL;
 	}
 
+	mtx_destroy(&sc->pps_mtx_compare);
+	mtx_destroy(&sc->pps_mtx_ext);
+	mtx_destroy(&sc->pps_mtx_pulse);
+	mtx_destroy(&sc->pps_mtx_synth);
 	mtx_destroy(&sc->mtx);
+}
+
+static void
+setup_pps_state(struct pps_state *state, struct mtx *mtx)
+{
+	state->ppscap = PPS_CAPTUREASSERT;
+	state->driver_abi = PPS_ABI_VERSION;
+	state->driver_mtx = mtx;
+	pps_init_abi(state);
 }
 
 static int
@@ -301,6 +369,10 @@ tsg_attach(device_t dev)
 	sc->registers_resource = NULL;
 
 	mtx_init(&sc->mtx, "tsg", NULL, MTX_DEF);
+	mtx_init(&sc->pps_mtx_compare, "tsg_compare", NULL, MTX_DEF);
+	mtx_init(&sc->pps_mtx_ext, "tsg_ext", NULL, MTX_DEF);
+	mtx_init(&sc->pps_mtx_pulse, "tsg_pulse", NULL, MTX_DEF);
+	mtx_init(&sc->pps_mtx_synth, "tsg_synth", NULL, MTX_DEF);
 
 	/* arrange to talk to LCR */
 	sc->lcr_rid = PCIR_BAR(BAR_LCR);
@@ -341,7 +413,10 @@ tsg_attach(device_t dev)
 	sc->intmask = 0;
 	bus_write_region_1(sc->registers_resource, REG_HARDWARE_CONTROL, &sc->intmask, 1);
 
-	sc->p_count = 0;
+	setup_pps_state(&sc->pps_state_compare, &sc->pps_mtx_compare);
+	setup_pps_state(&sc->pps_state_ext, &sc->pps_mtx_ext);
+	setup_pps_state(&sc->pps_state_pulse, &sc->pps_mtx_pulse);
+	setup_pps_state(&sc->pps_state_synth, &sc->pps_mtx_synth);
 
 	/* allocate interrupt */
 	sc->intr_rid = 0;
@@ -392,6 +467,15 @@ tsg_attach(device_t dev)
 		return ENXIO;
 	}
 
+	args.mda_devsw = &tsg_cdevsw_compare;
+	error = make_dev_s(&args, &sc->cdev_compare, "tsg%d.compare", unit);
+	if (error != 0) {
+		sc->cdev_compare = NULL;
+		release_resources(sc);
+		device_printf(dev, "cannot create device node tsg%d.compare", unit);
+		return ENXIO;
+	}
+
 	args.mda_devsw = &tsg_cdevsw_ext;
 	error = make_dev_s(&args, &sc->cdev_ext, "tsg%d.ext", unit);
 	if (error != 0) {
@@ -399,6 +483,27 @@ tsg_attach(device_t dev)
 		release_resources(sc);
 		device_printf(dev, "cannot create device node tsg%d.ext", unit);
 		return ENXIO;
+	}
+
+	args.mda_devsw = &tsg_cdevsw_pulse;
+	error = make_dev_s(&args, &sc->cdev_pulse, "tsg%d.pulse", unit);
+	if (error != 0) {
+		sc->cdev_pulse = NULL;
+		release_resources(sc);
+		device_printf(dev, "cannot create device node tsg%d.pulse", unit);
+		return ENXIO;
+	}
+
+	sc->cdev_synth = NULL;
+	if (sc->new_model) {
+		args.mda_devsw = &tsg_cdevsw_synth;
+		error = make_dev_s(&args, &sc->cdev_synth, "tsg%d.synth", unit);
+		if (error != 0) {
+			sc->cdev_synth = NULL;
+			release_resources(sc);
+			device_printf(dev, "cannot create device node tsg%d.synth", unit);
+			return ENXIO;
+		}
 	}
 
 	/* Only the new board support the firmware registers.
@@ -423,8 +528,14 @@ tsg_detach(device_t dev)
 {
 	struct tsg_softc *sc = device_get_softc(dev);
 
+	if (sc->cdev_synth)
+		destroy_dev(sc->cdev_synth);
+	if (sc->cdev_pulse)
+		destroy_dev(sc->cdev_pulse);
 	if (sc->cdev_ext)
 		destroy_dev(sc->cdev_ext);
+	if (sc->cdev_compare)
+		destroy_dev(sc->cdev_compare);
 	if (sc->cdev)
 		destroy_dev(sc->cdev);
 	release_resources(sc);
@@ -440,7 +551,25 @@ tsg_open(struct cdev *dev, int oflags, int devtype, struct thread *td)
 }
 
 static int
+tsg_compare_open(struct cdev *dev, int oflags, int devtype, struct thread *td)
+{
+	return 0;
+}
+
+static int
 tsg_ext_open(struct cdev *dev, int oflags, int devtype, struct thread *td)
+{
+	return 0;
+}
+
+static int
+tsg_pulse_open(struct cdev *dev, int oflags, int devtype, struct thread *td)
+{
+	return 0;
+}
+
+static int
+tsg_synth_open(struct cdev *dev, int oflags, int devtype, struct thread *td)
 {
 	return 0;
 }
@@ -454,7 +583,25 @@ tsg_close(struct cdev *dev, int fflag, int devtype, struct thread *td)
 }
 
 static int
+tsg_compare_close(struct cdev *dev, int fflag, int devtype, struct thread *td)
+{
+	return 0;
+}
+
+static int
 tsg_ext_close(struct cdev *dev, int fflag, int devtype, struct thread *td)
+{
+	return 0;
+}
+
+static int
+tsg_pulse_close(struct cdev *dev, int fflag, int devtype, struct thread *td)
+{
+	return 0;
+}
+
+static int
+tsg_synth_close(struct cdev *dev, int fflag, int devtype, struct thread *td)
 {
 	return 0;
 }
@@ -1696,20 +1843,6 @@ tsg_set_int_mask(struct tsg_softc *sc, caddr_t arg)
 }
 
 static int
-tsg_get_board_counts(struct tsg_softc *sc, caddr_t arg)
-{
-	struct tsg_counts *argp = (struct tsg_counts *)arg;
-
-	lock(sc);
-	argp->c_count = sc->c_count;
-	argp->e_count = sc->e_count;
-	argp->p_count = sc->p_count;
-	argp->s_count = sc->s_count;
-	unlock(sc);
-	return 0;
-}
-
-static int
 tsg_ioctl(struct cdev *dev, u_long cmd, caddr_t arg, int fflag, struct thread *td)
 {
 	struct tsg_softc *sc = dev->si_drv1;
@@ -1765,7 +1898,6 @@ tsg_ioctl(struct cdev *dev, u_long cmd, caddr_t arg, int fflag, struct thread *t
 		{ TSG_SET_COMPARE_TIME,		tsg_set_compare_time },
 		{ TSG_GET_INT_MASK,		tsg_get_int_mask },
 		{ TSG_SET_INT_MASK,		tsg_set_int_mask },
-		{ TSG_GET_BOARD_COUNTS,		tsg_get_board_counts },
 		{ 0,				NULL },
 	};
 
@@ -1776,9 +1908,51 @@ tsg_ioctl(struct cdev *dev, u_long cmd, caddr_t arg, int fflag, struct thread *t
 }
 
 static int
+tsg_compare_ioctl(struct cdev *dev, u_long cmd, caddr_t arg, int fflag, struct thread *td)
+{
+	struct tsg_softc *sc = dev->si_drv1;
+	int err;
+
+	mtx_lock(&sc->pps_mtx_compare);
+	err = pps_ioctl(cmd, arg, &sc->pps_state_compare);
+	mtx_unlock(&sc->pps_mtx_compare);
+	return err;
+}
+
+static int
 tsg_ext_ioctl(struct cdev *dev, u_long cmd, caddr_t arg, int fflag, struct thread *td)
 {
-	return EOPNOTSUPP;
+	struct tsg_softc *sc = dev->si_drv1;
+	int err;
+
+	mtx_lock(&sc->pps_mtx_ext);
+	err = pps_ioctl(cmd, arg, &sc->pps_state_ext);
+	mtx_unlock(&sc->pps_mtx_ext);
+	return err;
+}
+
+static int
+tsg_pulse_ioctl(struct cdev *dev, u_long cmd, caddr_t arg, int fflag, struct thread *td)
+{
+	struct tsg_softc *sc = dev->si_drv1;
+	int err;
+
+	mtx_lock(&sc->pps_mtx_pulse);
+	err = pps_ioctl(cmd, arg, &sc->pps_state_pulse);
+	mtx_unlock(&sc->pps_mtx_pulse);
+	return err;
+}
+
+static int
+tsg_synth_ioctl(struct cdev *dev, u_long cmd, caddr_t arg, int fflag, struct thread *td)
+{
+	struct tsg_softc *sc = dev->si_drv1;
+	int err;
+
+	mtx_lock(&sc->pps_mtx_synth);
+	err = pps_ioctl(cmd, arg, &sc->pps_state_synth);
+	mtx_unlock(&sc->pps_mtx_synth);
+	return err;
 }
 
 static device_method_t tsg_methods[] = {
