@@ -111,6 +111,20 @@ set_j1(int fd)
 }
 
 static int
+get_counts(int fd)
+{
+	struct tsg_counts counts;
+
+	if (tsg_get_board_p_count(fd, &counts) == -1)
+		return -1;
+	printf("compare count: %lu\n", (unsigned long)counts.c_count);
+	printf("event count: %lu\n", (unsigned long)counts.e_count);
+	printf("pulse count: %lu\n", (unsigned long)counts.p_count);
+	printf("synth count: %lu\n", (unsigned long)counts.s_count);
+	return 0;
+}
+
+static int
 get_self_test(int fd)
 {
 	uint8_t status;
@@ -215,6 +229,7 @@ get_board(int fd)
 		{ "j1", "J1 output signal", get_j1 },
 		{ "self-test", "self test results", get_self_test },
 		{ "int-mask", "interrupt mask ", get_int_mask },
+		{ "counts", "pulse count", get_counts },
 		{ NULL, NULL, NULL },
 	};
 

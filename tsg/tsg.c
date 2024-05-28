@@ -18,7 +18,6 @@
 #include <sys/bus.h>
 #include <machine/bus.h>
 #include <machine/stdarg.h>
-#include <machine/atomic.h>
 
 #include <sys/rman.h>
 
@@ -36,8 +35,22 @@
 #define	BAR_LCR		0	/* BAR0: "Local Configuration Registers" */
 #define BAR_REGISTERS	2	/* BAR2: regular card registers */
 
+/* "Local Configuration Registers"; INTCSR is the only one */
+#define	LCR_INTCSR	0x4c
+#define		LCR_INTCSR_ENABLE	0x0048
+#define		LCR_INTCSR_DISABLE	0x0008
+
 /* register addresses */
 #define	REG_HARDWARE_STATUS	0xfe
+#define		TSG_INTR_SYNTH		0x08	// synth edge occurred
+#define		TSG_INTR_PULSE		0x04	// pulse edge occurred
+#define		TSG_INTR_COMPARE	0x02	// time comparison edge occurred
+#define		TSG_INTR_EXT		0x01	// external event edge occurred
+#define	REG_HARDWARE_CONTROL	0xf8
+#define		TSG_CLEAR_SYNTH		0x40
+#define		TSG_CLEAR_PULSE		0x04
+#define		TSG_CLEAR_COMPARE	0x02
+#define		TSG_CLEAR_EXT		0x01
 #define	REG_LOCK_STATUS		0x105
 #define	REG_CONFIG		0x118	// Configuration Register #1
 #define		TSG_PRESET_TIME_READY	0x04
@@ -67,6 +80,10 @@ struct tsg_softc {
 	int		registers_rid;
 	struct resource	*registers_resource;
 
+	int		intr_rid;
+	struct resource	*intr_resource;
+	void		*cookiep;
+
 	uint16_t	model;	/* from subdevice id */
 	bool		new_model;
 	bool		has_gps;
@@ -79,8 +96,12 @@ struct tsg_softc {
 
 	// intmask determines which events should generate interrupts.
 	// (TSG_INT_ENABLE_*)
-	// only access this field with atomic_(load|store)_int
-	unsigned 	intmask;
+	uint8_t 	intmask;
+
+	uint32_t	c_count;
+	uint32_t	e_count;
+	uint32_t	p_count;	// temporary to test intr handling
+	uint32_t	s_count;
 };
 
 static d_open_t		tsg_open;
@@ -131,6 +152,13 @@ model2desc(int model)
 	return NULL;
 }
 
+static void
+tsg_intcsr(struct tsg_softc *sc, int enable)
+{
+	uint32_t intcsr = enable ? LCR_INTCSR_ENABLE : LCR_INTCSR_DISABLE;
+        bus_write_region_4(sc->lcr_resource, LCR_INTCSR, &intcsr, 1);
+}
+
 static int
 tsg_probe(device_t dev)
 {
@@ -173,8 +201,73 @@ tsg_modevent(module_t mod __unused, int event, void *arg __unused)
 }
 
 static void
+tsg_ithrd(void *arg)
+{
+	struct tsg_softc *sc = arg;
+	uint8_t intstat;
+	unsigned intmask;
+	uint8_t clearmask = 0;
+
+	lock(sc);
+
+	// find out which events occurred
+	bus_read_region_1(sc->registers_resource, REG_HARDWARE_STATUS, &intstat, 1);
+
+	// which events are we interested in?
+	intmask = sc->intmask;
+
+	// capture PPS events when we are interested in them AND they have occurred
+	if ((intmask & TSG_INT_ENABLE_EXT) && (intstat & TSG_INTR_EXT)) {
+		++sc->e_count;
+		clearmask |= TSG_CLEAR_EXT;
+	}
+	if ((intmask & TSG_INT_ENABLE_PULSE) && (intstat & TSG_INTR_PULSE)) {
+		//pps_capture(sc->pps_state_ext);
+		//pps_event(sc->pps_state_ext, PPS_CAPTURE_ASSERT);
+		++sc->p_count;
+		clearmask |= TSG_CLEAR_PULSE;
+	}
+	if ((intmask & TSG_INT_ENABLE_COMPARE) && (intstat & TSG_INTR_COMPARE)) {
+		++sc->c_count;
+		clearmask |= TSG_CLEAR_COMPARE;
+	}
+	if ((intmask & TSG_INT_ENABLE_SYNTH) && (intstat & TSG_INTR_SYNTH)) {
+		++sc->s_count;
+		clearmask |= TSG_CLEAR_SYNTH;
+	}
+
+	// the control register holds the events we are interested in, and is used
+	// to clear/acknowlege events
+	clearmask |= sc->intmask;
+	bus_write_region_1(sc->registers_resource, REG_HARDWARE_CONTROL, &clearmask, 1);
+
+	unlock(sc);
+}
+
+static void
 release_resources(struct tsg_softc *sc)
 {
+	tsg_intcsr(sc, 0);
+
+	if (sc->cookiep != NULL) {
+		uprintf("tearing down interrupt handler\n");
+		bus_teardown_intr(
+			sc->device,
+			sc->intr_resource,
+			sc->cookiep
+		);
+		sc->cookiep = NULL;
+	}
+	if (sc->intr_resource) {
+		uprintf("releasing interrupt resource\n");
+		bus_release_resource(
+			sc->device,
+			SYS_RES_IRQ,
+			sc->intr_rid,
+			sc->intr_resource
+		);
+		sc->intr_resource = NULL;
+	}
 	if (sc->lcr_resource) {
 		bus_release_resource(
 			sc->device,
@@ -240,6 +333,46 @@ tsg_attach(device_t dev)
 	sc->model = pci_get_subdevice(dev);
 	sc->new_model = sc->model == TSG_MODEL_PCI_SG_2U || sc->model == TSG_MODEL_GPS_PCI_2U;
 	sc->has_gps = sc->model == TSG_MODEL_GPS_PCI || sc->model == TSG_MODEL_GPS_PCI_2U;
+
+	/* turn off board interrupts */
+	tsg_intcsr(sc, 0);
+
+	/* clear interrupt mask on board */
+	sc->intmask = 0;
+	bus_write_region_1(sc->registers_resource, REG_HARDWARE_CONTROL, &sc->intmask, 1);
+
+	sc->p_count = 0;
+
+	/* allocate interrupt */
+	sc->intr_rid = 0;
+	sc->intr_resource = bus_alloc_resource_any(
+		dev,
+		SYS_RES_IRQ,
+		&sc->intr_rid,
+		RF_ACTIVE | RF_SHAREABLE
+	);
+	if (!sc->intr_resource) {
+		release_resources(sc);
+		device_printf(dev, "cannot allocate interrupt\n");
+		return ENXIO;
+	}
+
+	/* register interrupt handler */
+	sc->cookiep = NULL;
+	int err = bus_setup_intr(
+		dev,
+		sc->intr_resource,
+		INTR_TYPE_CLK | INTR_MPSAFE,
+		NULL,
+		tsg_ithrd,
+		sc,
+		&sc->cookiep
+	);
+	if (err) {
+		release_resources(sc);
+		device_printf(dev, "cannot register interrupt handler\n");
+		return err;
+	}
 
 	int unit = device_get_unit(dev);
 	struct make_dev_args args;
@@ -1536,7 +1669,10 @@ tsg_get_int_mask(struct tsg_softc *sc, caddr_t arg)
 {
 	uint8_t *argp = (uint8_t *)arg;
 
-	*argp = (uint8_t)atomic_load_int(&sc->intmask);
+	lock(sc);
+	*argp = sc->intmask;
+	unlock(sc);
+
 	return 0;
 }
 
@@ -1550,7 +1686,26 @@ tsg_set_int_mask(struct tsg_softc *sc, caddr_t arg)
 	if (!sc->new_model && (*argp & TSG_INT_ENABLE_SYNTH))
 		return ENODEV;	// old boards don't support synth interrupts
 
-	atomic_store_int(&sc->intmask, *argp);
+	lock(sc);
+	sc->intmask = *argp;
+	bus_write_region_1(sc->registers_resource, REG_HARDWARE_CONTROL, &sc->intmask, 1);
+	tsg_intcsr(sc, sc->intmask != 0);
+	unlock(sc);
+
+	return 0;
+}
+
+static int
+tsg_get_board_counts(struct tsg_softc *sc, caddr_t arg)
+{
+	struct tsg_counts *argp = (struct tsg_counts *)arg;
+
+	lock(sc);
+	argp->c_count = sc->c_count;
+	argp->e_count = sc->e_count;
+	argp->p_count = sc->p_count;
+	argp->s_count = sc->s_count;
+	unlock(sc);
 	return 0;
 }
 
@@ -1610,6 +1765,7 @@ tsg_ioctl(struct cdev *dev, u_long cmd, caddr_t arg, int fflag, struct thread *t
 		{ TSG_SET_COMPARE_TIME,		tsg_set_compare_time },
 		{ TSG_GET_INT_MASK,		tsg_get_int_mask },
 		{ TSG_SET_INT_MASK,		tsg_set_int_mask },
+		{ TSG_GET_BOARD_COUNTS,		tsg_get_board_counts },
 		{ 0,				NULL },
 	};
 

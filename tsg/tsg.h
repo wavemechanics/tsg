@@ -222,13 +222,22 @@ struct tsg_compare_time {
 #define	TSG_SET_BOARD_PIN6		_IOW('T', 221, uint8_t)
 
 /* enable interrupt handling for various events */
-#define	TSG_INT_ENABLE_EXT		0x08
-#define	TSG_INT_ENABLE_COMPARE		0x10
-#define	TSG_INT_ENABLE_PULSE		0x20
 #define	TSG_INT_ENABLE_SYNTH		0x80
-#define	TSG_INT_ENABLE_MASK		(TSG_INT_ENABLE_EXT | TSG_INT_ENABLE_COMPARE | TSG_INT_ENABLE_PULSE | TSG_INT_ENABLE_SYNTH)
+#define	TSG_INT_ENABLE_PULSE		0x20
+#define	TSG_INT_ENABLE_COMPARE		0x10
+#define	TSG_INT_ENABLE_EXT		0x08
+#define	TSG_INT_ENABLE_MASK		(TSG_INT_ENABLE_SYNTH | TSG_INT_ENABLE_PULSE | TSG_INT_ENABLE_COMPARE | TSG_INT_ENABLE_EXT)
 
 #define	TSG_GET_INT_MASK		_IOR('T', 230, uint8_t)
 #define	TSG_SET_INT_MASK		_IOW('T', 231, uint8_t)
+
+struct tsg_counts {
+	uint32_t c_count;
+	uint32_t e_count;
+	uint32_t p_count;
+	uint32_t s_count;
+};
+
+#define	TSG_GET_BOARD_COUNTS		_IOR('T', 240, struct tsg_counts)
 
 #endif

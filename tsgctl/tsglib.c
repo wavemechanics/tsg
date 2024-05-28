@@ -277,3 +277,9 @@ tsg_set_int_mask(int fd, uint8_t *p)
 {
 	return ioctl(fd, TSG_SET_INT_MASK, p);
 }
+
+int
+tsg_get_board_p_count(int fd, struct tsg_counts *p)
+{
+	return ioctl(fd, TSG_GET_BOARD_COUNTS, p);
+}
