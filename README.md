@@ -132,17 +132,17 @@ You can use a frequency counter to verify the J1 output frequency.
 
 The board can generate interrupts on the following events:
 
-    * time comparison: the comparison mask matches the board's clock time
-    * external event: a signal on DB9 pin 1 has been received
-    * pulse: a rising edge from the internal pulse generator
-    * synth: a rising edge from the internal frequency synthesizer
+* time comparison: the comparison mask matches the board's clock time
+* external event: a signal on DB9 pin 1 has been received
+* pulse: a rising edge from the internal pulse generator
+* synth: a rising edge from the internal frequency synthesizer
 
 Each event is associated with its own device:
 
-    * `/dev/tsgN.compare`
-    * `/dev/tsgN.ext`
-    * `/dev/tsgN.pulse`
-    * `/dev/tsgN.synth`
+* `/dev/tsgN.compare`
+* `/dev/tsgN.ext`
+* `/dev/tsgN.pulse`
+* `/dev/tsgN.synth`
 
 The PPS API `ioctl`s provide the means to capture event timestamps.
 
@@ -167,22 +167,22 @@ These two times are then fed into the NTP SHM Driver 28.
 Here is an example showing the comparison between system time and board time
 when the system is running normal network-based NTP:
 
-assert 2767 count 14
-        sys: 1717149699.000002552
-        brd: 1717149699.000010500
-        dif: 00.000007948
-assert 2768 count 15
-        sys: 1717149700.000001422
-        brd: 1717149700.000009300
-        dif: 00.000007878
-assert 2769 count 16
-        sys: 1717149701.000004482
-        brd: 1717149701.000012200
-        dif: 00.000007718
-assert 2770 count 17
-        sys: 1717149702.000001117
-        brd: 1717149702.000008900
-        dif: 00.000007783
+    assert 2767 count 14
+            sys: 1717149699.000002552
+            brd: 1717149699.000010500
+            dif: 00.000007948
+    assert 2768 count 15
+            sys: 1717149700.000001422
+            brd: 1717149700.000009300
+            dif: 00.000007878
+    assert 2769 count 16
+            sys: 1717149701.000004482
+            brd: 1717149701.000012200
+            dif: 00.000007718
+    assert 2770 count 17
+            sys: 1717149702.000001117
+            brd: 1717149702.000008900
+            dif: 00.000007783
 
 You can see the difference between system time and board time is a stable 7 usec,
 even though the interrupt latency varies between 8.9 and 12.2 usec in this snippet.
