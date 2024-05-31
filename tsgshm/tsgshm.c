@@ -14,7 +14,9 @@
 #include "../tsg/tsg.h"
 #include "doy.h"
 
-#define	UNIT 0
+#define	STATE_NA	0
+#define	STATE_NOLOCK	1
+#define	STATE_LOCK	2
 
 struct shmTime {
         int    mode; /* 0 - if valid is set:
@@ -57,6 +59,7 @@ main(int argc, char **argv)
 	int verbose = 0;
 	pps_handle_t handle;
 	pps_params_t params;
+	int curstate, newstate;
 
 	while ((c = getopt(argc, argv, "d:hu:v")) != -1) {
 		switch (c) {
@@ -127,14 +130,45 @@ main(int argc, char **argv)
 	for (;;) {
 		pps_info_t info;
 		struct tsg_time t;
+		uint8_t ref, lock;
 
 		if (time_pps_fetch(handle, PPS_TSFMT_TSPEC, &info, NULL) != 0) {
 			perror("time_pps_fetch");
 			exit(1);
 		}
 		if (ioctl(fd, TSG_GET_LATCHED_TIME, &t) != 0) {
-			perror("ioctl");
+			perror("TSG_GET_LATCHED_TIME");
 			exit(1);
+		}
+
+		if (ioctl(fd, TSG_GET_CLOCK_REF, &ref) != 0) {
+			perror("TSG_GET_CLOCK_REF");
+			exit(1);
+		}
+		if (ioctl(fd, TSG_GET_CLOCK_LOCK, &lock) != 0) {
+			perror("TSG_GET_CLOCK_LOCK");
+			exit(1);
+		}
+
+		if (ref == TSG_CLOCK_REF_GEN)
+			newstate = STATE_NA;
+		else if (ref == TSG_CLOCK_REF_GPS)
+			newstate = (lock & TSG_CLOCK_GPS_LOCK) ? STATE_LOCK : STATE_NOLOCK;
+		else
+			newstate = (lock & TSG_CLOCK_PHASE_LOCK) ? STATE_LOCK : STATE_NOLOCK;
+		if (newstate != curstate) {
+			curstate = newstate;
+			switch (curstate) {
+			case STATE_NA:
+				fprintf(stderr, "STATE: free run, feeding ntp\n");
+				break;
+			case STATE_NOLOCK:
+				fprintf(stderr, "STATE: lost lock, not feeding ntp\n");
+				break;
+			case STATE_LOCK:
+				fprintf(stderr, "STATE: lock, feeding ntp\n");
+				break;
+			}
 		}
 
 		// convert board day of month month and day
@@ -159,22 +193,37 @@ main(int argc, char **argv)
 			.tv_nsec = t.nsec
 		};
 
-		// populate SHM for ntpd to pick up
-		// need memory barriers?
-		shmp->valid = 0;
-		shmp->receiveTimeStampSec = info.assert_timestamp.tv_sec;
-		shmp->receiveTimeStampUSec = info.assert_timestamp.tv_nsec / 1000;
-		shmp->receiveTimeStampNSec = info.assert_timestamp.tv_nsec;
+		if (curstate == STATE_NA || curstate == STATE_LOCK) {
+			// populate SHM for ntpd to pick up
+			// need memory barriers?
+			shmp->valid = 0;
+			shmp->receiveTimeStampSec = info.assert_timestamp.tv_sec;
+			shmp->receiveTimeStampUSec = info.assert_timestamp.tv_nsec / 1000;
+			shmp->receiveTimeStampNSec = info.assert_timestamp.tv_nsec;
 
-		shmp->clockTimeStampSec = brd.tv_sec;
-		shmp->clockTimeStampUSec = brd.tv_nsec / 1000;
-		shmp->clockTimeStampNSec = brd.tv_nsec;
+			shmp->clockTimeStampSec = brd.tv_sec;
+			shmp->clockTimeStampUSec = brd.tv_nsec / 1000;
+			shmp->clockTimeStampNSec = brd.tv_nsec;
 
-		shmp->count++;
-		shmp->valid = 1;
+			shmp->count++;
+			shmp->valid = 1;
+		}
 
 		if (verbose) {
-			printf("assert %d count %d\n", info.assert_sequence, shmp->count);
+			char *msg = "";
+			switch (curstate) {
+			case STATE_NA:
+				msg = "free run";
+				break;
+			case STATE_NOLOCK:
+				msg = "lost lock";
+				break;
+			case STATE_LOCK:
+				msg = "lock";
+				break;
+			}
+
+			printf("assert %d count %d %s\n", info.assert_sequence, shmp->count, msg);
 			printf("\tsys: %d.%09ld\n", info.assert_timestamp.tv_sec, info.assert_timestamp.tv_nsec);
 			printf("\tbrd: %d.%09ld\n", brd.tv_sec, brd.tv_nsec);
 			struct timespec diff;

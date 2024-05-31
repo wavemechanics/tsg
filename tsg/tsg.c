@@ -1996,7 +1996,10 @@ tsg_compare_ioctl(struct cdev *dev, u_long cmd, caddr_t arg, int fflag, struct t
 		*argp = sc->pps_time_compare;
 		unlock(sc);
 		return 0;
-	}
+	} else if (cmd == TSG_GET_CLOCK_REF)
+		return tsg_get_clock_ref(sc, arg);
+	else if (cmd == TSG_GET_CLOCK_LOCK)
+		return tsg_get_clock_ref(sc, arg);
 
 	mtx_lock(&sc->pps_mtx_compare);
 	err = pps_ioctl(cmd, arg, &sc->pps_state_compare);
@@ -2016,7 +2019,10 @@ tsg_ext_ioctl(struct cdev *dev, u_long cmd, caddr_t arg, int fflag, struct threa
 		*argp = sc->pps_time_ext;
 		unlock(sc);
 		return 0;
-	}
+	} else if (cmd == TSG_GET_CLOCK_REF)
+		return tsg_get_clock_ref(sc, arg);
+	else if (cmd == TSG_GET_CLOCK_LOCK)
+		return tsg_get_clock_ref(sc, arg);
 
 	mtx_lock(&sc->pps_mtx_ext);
 	err = pps_ioctl(cmd, arg, &sc->pps_state_ext);
@@ -2036,7 +2042,10 @@ tsg_pulse_ioctl(struct cdev *dev, u_long cmd, caddr_t arg, int fflag, struct thr
 		*argp = sc->pps_time_pulse;
 		unlock(sc);
 		return 0;
-	}
+	} else if (cmd == TSG_GET_CLOCK_REF)
+		return tsg_get_clock_ref(sc, arg);
+	else if (cmd == TSG_GET_CLOCK_LOCK)
+		return tsg_get_clock_ref(sc, arg);
 
 	mtx_lock(&sc->pps_mtx_pulse);
 	err = pps_ioctl(cmd, arg, &sc->pps_state_pulse);
@@ -2056,7 +2065,10 @@ tsg_synth_ioctl(struct cdev *dev, u_long cmd, caddr_t arg, int fflag, struct thr
 		*argp = sc->pps_time_synth;
 		unlock(sc);
 		return 0;
-	}
+	} else if (cmd == TSG_GET_CLOCK_REF)
+		return tsg_get_clock_ref(sc, arg);
+	else if (cmd == TSG_GET_CLOCK_LOCK)
+		return tsg_get_clock_ref(sc, arg);
 
 	mtx_lock(&sc->pps_mtx_synth);
 	err = pps_ioctl(cmd, arg, &sc->pps_state_synth);
