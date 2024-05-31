@@ -146,7 +146,7 @@ Each event is associated with its own device:
 
 The PPS API `ioctl`s provide the means to capture event timestamps.
 
-In addition, each the board's clock time is latched within the interrupt
+In addition, the board's clock time is latched within the interrupt
 routine and is available using the `TSG_GET_LACHED_TIME` ioctl on each PPS
 device.
 
@@ -160,7 +160,7 @@ idea of the difference between the system clock and the board clock.
 
 The `tsgshm` program is an example of how this can be done.
 On every PPS API event, it uses `time_pps_fetch` to get the PPS time, and then
-uses the `TSG_GET_LATCHED_TIME ioctl to get the board time that was latched
+uses the `TSG_GET_LATCHED_TIME' ioctl to get the board time that was latched
 when the PPS event was handled.
 These two times are then fed into the NTP SHM Driver 28.
 
