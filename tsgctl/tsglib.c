@@ -277,3 +277,9 @@ tsg_set_int_mask(int fd, uint8_t *p)
 {
 	return ioctl(fd, TSG_SET_INT_MASK, p);
 }
+
+int
+tsg_get_latched_time(int fd, struct tsg_time *p)
+{
+	return ioctl(fd, TSG_GET_LATCHED_TIME, p);
+}

@@ -231,4 +231,6 @@ struct tsg_compare_time {
 #define	TSG_GET_INT_MASK		_IOR('T', 230, uint8_t)
 #define	TSG_SET_INT_MASK		_IOW('T', 231, uint8_t)
 
+#define	TSG_GET_LATCHED_TIME		_IOR('T', 240, struct tsg_time)
+
 #endif

@@ -205,6 +205,24 @@ set_int_mask(int fd)
 	return tsg_set_int_mask(fd, &mask);
 }
 
+static int
+get_latched_time(int fd)
+{
+        struct tsg_time t;
+        if (tsg_get_latched_time(fd, &t) != 0)
+                return -1;
+        printf(
+                "time: %d-%d-%02d:%02d:%02d.%09ld\n",
+                t.year,
+                t.day,
+                t.hour,
+                t.min,
+                t.sec,
+                (unsigned long)t.nsec
+        );
+        return 0;
+}
+
 int
 get_board(int fd)
 {
@@ -215,6 +233,7 @@ get_board(int fd)
 		{ "j1", "J1 output signal", get_j1 },
 		{ "self-test", "self test results", get_self_test },
 		{ "int-mask", "interrupt mask ", get_int_mask },
+		{ "latched-time", "time latched in last interrupt", get_latched_time },
 		{ NULL, NULL, NULL },
 	};
 

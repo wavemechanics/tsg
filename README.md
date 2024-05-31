@@ -32,6 +32,8 @@ Directory layout:
 
     tsgctl/	control program sources
 
+    tsgshm/ example NTP SHM driver
+
 Each source directory has its own `Makefile`, so you can just change to each directory
 and run `make`.
 
@@ -125,3 +127,62 @@ CODE OUT (J1):
     # ./tsgctl -d /dev/tsg0 set pulse freq 10MHz
 
 You can use a frequency counter to verify the J1 output frequency.
+
+## Using the PPS API
+
+The board can generate interrupts on the following events:
+
+    * time comparison: the comparison mask matches the board's clock time
+    * external event: a signal on DB9 pin 1 has been received
+    * pulse: a rising edge from the internal pulse generator
+    * synth: a rising edge from the internal frequency synthesizer
+
+Each event is associated with its own device:
+
+    * `/dev/tsgN.compare`
+    * `/dev/tsgN.ext`
+    * `/dev/tsgN.pulse`
+    * `/dev/tsgN.synth`
+
+The PPS API `ioctl`s provide the means to capture event timestamps.
+
+In addition, each the board's clock time is latched within the interrupt
+routine and is available using the `TSG_GET_LACHED_TIME` ioctl on each PPS
+device.
+
+PPS events can be used by NTP using the PPS Driver 22.
+This works, but the timestamps are subject to significant and variable interrupt
+latencies.
+
+For clock disciplining applications, the latched board time can be used along
+with the PPS timestamps to factor out interrupt latency and feed NTP a truer
+idea of the difference between the system clock and the board clock.
+
+The `tsgshm` program is an example of how this can be done.
+On every PPS API event, it uses `time_pps_fetch` to get the PPS time, and then
+uses the `TSG_GET_LATCHED_TIME ioctl to get the board time that was latched
+when the PPS event was handled.
+These two times are then fed into the NTP SHM Driver 28.
+
+Here is an example showing the comparison between system time and board time
+when the system is running normal network-based NTP:
+
+assert 2767 count 14
+        sys: 1717149699.000002552
+        brd: 1717149699.000010500
+        dif: 00.000007948
+assert 2768 count 15
+        sys: 1717149700.000001422
+        brd: 1717149700.000009300
+        dif: 00.000007878
+assert 2769 count 16
+        sys: 1717149701.000004482
+        brd: 1717149701.000012200
+        dif: 00.000007718
+assert 2770 count 17
+        sys: 1717149702.000001117
+        brd: 1717149702.000008900
+        dif: 00.000007783
+
+You can see the difference between system time and board time is a stable 7 usec,
+even though the interrupt latency varies between 8.9 and 12.2 usec in this snippet.

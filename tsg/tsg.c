@@ -107,15 +107,19 @@ struct tsg_softc {
 	// We manage four PPS API interfaces
 	struct pps_state	pps_state_compare;
 	struct mtx		pps_mtx_compare;
+	struct tsg_time		pps_time_compare;
 
 	struct pps_state	pps_state_ext;
 	struct mtx		pps_mtx_ext;
+	struct tsg_time		pps_time_ext;
 
 	struct pps_state	pps_state_pulse;
 	struct mtx		pps_mtx_pulse;
+	struct tsg_time		pps_time_pulse;
 
 	struct pps_state	pps_state_synth;
 	struct mtx		pps_mtx_synth;
+	struct tsg_time		pps_time_synth;
 };
 
 static d_open_t		tsg_open;
@@ -250,6 +254,95 @@ tsg_modevent(module_t mod __unused, int event, void *arg __unused)
 	return error;
 }
 
+static char *fmt_bcd_time = "nnnn nnnn nnnn";
+
+static void
+read_bcd_time(struct tsg_softc *sc)
+{
+	bus_read_region_1(sc->registers_resource, 0xfc, sc->buf, packlen(fmt_bcd_time));
+}
+
+// bcd_time holds the BCD components of the time taken from the board
+struct bcd_time {
+	uint8_t thousands_year;
+	uint8_t hundreds_year;
+	uint8_t tens_year;
+	uint8_t units_year;
+
+	uint8_t hundreds_day;
+	uint8_t tens_day;
+	uint8_t units_day;
+
+	uint8_t tens_hour;
+	uint8_t units_hour;
+
+	uint8_t tens_min;
+	uint8_t units_min;
+
+	uint8_t tens_sec;
+	uint8_t units_sec;
+
+	uint8_t hundreds_milli;
+	uint8_t tens_milli;
+	uint8_t units_milli;
+
+	uint8_t	hundreds_micro;
+	uint8_t tens_micro;
+	uint8_t units_micro;
+
+	uint8_t hundreds_nano;
+};
+
+static void
+unpack_bcd_time(uint8_t *buf, struct bcd_time *b)
+{
+	unpack(
+		buf,
+		fmt_bcd_time,
+		&b->tens_micro,		&b->units_micro,
+		&b->units_milli,	&b->hundreds_micro,
+		NULL,			NULL,
+		&b->hundreds_nano,	NULL,
+		&b->hundreds_milli,	&b->tens_milli,
+		&b->tens_sec,		&b->units_sec,
+		&b->tens_min,		&b->units_min,
+		&b->tens_hour,		&b->units_hour,
+		&b->tens_day,		&b->units_day,
+		NULL,			&b->hundreds_day,
+		&b->tens_year,		&b->units_year,
+		&b->thousands_year,	&b->hundreds_year
+	);
+}
+
+static void
+bcd2time(struct bcd_time *b, struct tsg_time *t, int new)
+{
+	t->year = b->thousands_year * 1000 +
+		  b->hundreds_year * 100 +
+		  b->tens_year * 10 +
+		  b->units_year;
+
+	t->day = b->hundreds_day * 100 +
+		 b->tens_day * 10 +
+		 b->units_day;
+
+	t->hour = b->tens_hour * 10 + b->units_hour;
+
+	t->min = b->tens_min * 10 + b->units_min;
+
+	t->sec = b->tens_sec * 10 + b->units_sec;
+
+	t->nsec = b->hundreds_milli * 100000000 +
+		  b->tens_milli  *     10000000 +
+		  b->units_milli *      1000000 +
+		  b->hundreds_micro *    100000 +
+		  b->tens_micro *         10000 +
+		  b->units_micro *         1000;
+
+	if (new)
+		t->nsec += b->hundreds_nano * 100;
+}
+
 static void
 timestamp(struct pps_state *state, struct mtx *mtx)
 {
@@ -268,6 +361,9 @@ tsg_ithrd(void *arg)
 	uint8_t clearmask = 0;
 
 	lock(sc);
+
+	// latch board time so we can grab it later
+	bus_write_region_1(sc->registers_resource, 0xfc, sc->buf, 1);
 
 	// find out which events occurred
 	bus_read_region_1(sc->registers_resource, REG_HARDWARE_STATUS, &intstat, 1);
@@ -292,6 +388,22 @@ tsg_ithrd(void *arg)
 		timestamp(&sc->pps_state_synth, &sc->pps_mtx_synth);
 		clearmask |= TSG_CLEAR_SYNTH;
 	}
+
+	// save latched time for userland
+	struct bcd_time b;
+	struct tsg_time latched_time;
+
+	read_bcd_time(sc);
+	unpack_bcd_time(sc->buf, &b);
+	bcd2time(&b, &latched_time, sc->new_model);
+	if (clearmask & TSG_CLEAR_EXT)
+		sc->pps_time_ext = latched_time;
+	if (clearmask & TSG_CLEAR_PULSE)
+		sc->pps_time_pulse = latched_time;
+	if (clearmask & TSG_CLEAR_COMPARE)
+		sc->pps_time_compare = latched_time;
+	if (clearmask & TSG_CLEAR_SYNTH)
+		sc->pps_time_synth = latched_time;
 
 	// the control register holds the events we are interested in, and is used
 	// to clear/acknowlege events
@@ -904,53 +1016,18 @@ static int
 tsg_get_clock_time(struct tsg_softc *sc, caddr_t arg)
 {
 	struct tsg_time *argp = (struct tsg_time *)arg;
-	char *fmt = "nnnn nnnn nnnn";
-	uint8_t thousands_year, hundreds_year, tens_year, units_year;
-	uint8_t hundreds_day, tens_day, units_day;
-	uint8_t tens_hour, units_hour;
-	uint8_t tens_min, units_min;
-	uint8_t tens_sec, units_sec;
-	uint8_t hundreds_milli, tens_milli, units_milli;
-	uint8_t hundreds_micro, tens_micro, units_micro;
-	uint8_t hundreds_nano;
 
 	lock(sc);
 	bus_write_region_1(sc->registers_resource, 0xfc, sc->buf, 1);
-	bus_read_region_1(sc->registers_resource, 0xfc, sc->buf, packlen(fmt));
-	unpack(sc->buf, fmt,
-		&tens_micro,     &units_micro,
-		&units_milli,    &hundreds_micro,
-		NULL,            NULL,
-		&hundreds_nano,  NULL,
-		&hundreds_milli, &tens_milli,
-		&tens_sec,       &units_sec,
-		&tens_min,       &units_min,
-		&tens_hour,      &units_hour,
-		&tens_day,       &units_day,
-		NULL,            &hundreds_day,
-		&tens_year,      &units_year,
-		&thousands_year, &hundreds_year
-	);
+
+	read_bcd_time(sc);
+	struct bcd_time b;
+	unpack_bcd_time(sc->buf, &b);
+
 	unlock(sc);
 
-	argp->year = thousands_year * 1000 +
-		     hundreds_year * 100 +
-		     tens_year * 10 +
-		     units_year;
-	argp->day = hundreds_day * 100 +
-		    tens_day * 10 +
-		    units_day;
-	argp->hour = tens_hour * 10 + units_hour;
-	argp->min = tens_min * 10 + units_min;
-	argp->sec = tens_sec * 10 + units_sec;
-	argp->nsec = hundreds_milli * 100000000 +
-		     tens_milli *      10000000 +
-		     units_milli *      1000000 +
-		     hundreds_micro *    100000 +
-		     tens_micro *         10000 +
-		     units_micro *         1000;
-	if (sc->new_model)
-		argp->nsec += hundreds_nano * 100;
+	bcd2time(&b, argp, sc->new_model);
+
 	return 0;
 }
 
@@ -1913,6 +1990,14 @@ tsg_compare_ioctl(struct cdev *dev, u_long cmd, caddr_t arg, int fflag, struct t
 	struct tsg_softc *sc = dev->si_drv1;
 	int err;
 
+	if (cmd == TSG_GET_LATCHED_TIME) {
+		struct tsg_time *argp = (struct tsg_time *)arg;
+		lock(sc);
+		*argp = sc->pps_time_compare;
+		unlock(sc);
+		return 0;
+	}
+
 	mtx_lock(&sc->pps_mtx_compare);
 	err = pps_ioctl(cmd, arg, &sc->pps_state_compare);
 	mtx_unlock(&sc->pps_mtx_compare);
@@ -1924,6 +2009,14 @@ tsg_ext_ioctl(struct cdev *dev, u_long cmd, caddr_t arg, int fflag, struct threa
 {
 	struct tsg_softc *sc = dev->si_drv1;
 	int err;
+
+	if (cmd == TSG_GET_LATCHED_TIME) {
+		struct tsg_time *argp = (struct tsg_time *)arg;
+		lock(sc);
+		*argp = sc->pps_time_ext;
+		unlock(sc);
+		return 0;
+	}
 
 	mtx_lock(&sc->pps_mtx_ext);
 	err = pps_ioctl(cmd, arg, &sc->pps_state_ext);
@@ -1937,6 +2030,14 @@ tsg_pulse_ioctl(struct cdev *dev, u_long cmd, caddr_t arg, int fflag, struct thr
 	struct tsg_softc *sc = dev->si_drv1;
 	int err;
 
+	if (cmd == TSG_GET_LATCHED_TIME) {
+		struct tsg_time *argp = (struct tsg_time *)arg;
+		lock(sc);
+		*argp = sc->pps_time_pulse;
+		unlock(sc);
+		return 0;
+	}
+
 	mtx_lock(&sc->pps_mtx_pulse);
 	err = pps_ioctl(cmd, arg, &sc->pps_state_pulse);
 	mtx_unlock(&sc->pps_mtx_pulse);
@@ -1948,6 +2049,14 @@ tsg_synth_ioctl(struct cdev *dev, u_long cmd, caddr_t arg, int fflag, struct thr
 {
 	struct tsg_softc *sc = dev->si_drv1;
 	int err;
+
+	if (cmd == TSG_GET_LATCHED_TIME) {
+		struct tsg_time *argp = (struct tsg_time *)arg;
+		lock(sc);
+		*argp = sc->pps_time_synth;
+		unlock(sc);
+		return 0;
+	}
 
 	mtx_lock(&sc->pps_mtx_synth);
 	err = pps_ioctl(cmd, arg, &sc->pps_state_synth);

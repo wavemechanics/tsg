@@ -53,5 +53,6 @@ int tsg_get_compare_time(int fd, struct tsg_compare_time *p);
 int tsg_set_compare_time(int fd, struct tsg_compare_time *p);
 int tsg_get_int_mask(int fd, uint8_t *p);
 int tsg_set_int_mask(int fd, uint8_t *p);
+int tsg_get_latched_time(int fd, struct tsg_time *p);
 
 #endif
